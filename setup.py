@@ -30,7 +30,7 @@ setup(
     ],
     entry_points={
       'console_scripts': [
-        'scan2wiki = scan.scan2wiki:main',   
+        'scan2wiki = scan.scan2wiki:main',
       ],
     },
     author='Wolfgang Fahl',
