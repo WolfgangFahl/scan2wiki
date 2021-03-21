@@ -6,12 +6,13 @@ Created on 2021-03-21
 from datetime import datetime
 import tkinter as tk
 import PyPDF2
+from pathlib import Path
 
 class UploadEntry(object):
     
     def __init__(self,index,file):
         self.index=index
-        now=datetime.now()
+        self.timestamp=datetime.now()
         self.fields=[
             { "name": "pageTitle","label":"page title" },
             { "name": "scannedFile","label":"scanned file" },
@@ -19,9 +20,11 @@ class UploadEntry(object):
             { "name": "topic","label":"topic" },
             { "name": "ocrText","label":"ocr text","height":20}
         ]
-         
-        self.pageTitle="scan%s-%02d" % (now.strftime('%Y-%m-%d%H%M%S'),index+1)
+        self.timestampStr=self.timestamp.strftime('%Y-%m-%d%H%M%S')
+        self.pageTitle="scan%s-%02d" % (self.timestampStr,index+1)
         self.scannedFile=file
+        self.fileName=Path(self.scannedFile).name
+        
         self.categories="2021"
         self.topic="OCRDocument"
         self.ocrText=self.getPDFText()
@@ -71,8 +74,29 @@ class UploadEntry(object):
         return pdfText
             
             
-    def content(self):
-        template="""
+    def getContent(self):
+        wikicats=""
+        delim=""
+        for category in self.categories.split(','):
+            wikicats+="%s[[Category:%s]]" % (delim,category)
+            delim="\n"
+        if self.fileName.endswith(".pdf"):
+            template="""= pdf pages =
+<pdf>%s</pdf>
+= text =
+<pre>%s</pre>
+= pdf =
+[[File:%s]]
+%s
+<headertabs/>
+""" 
+            pageContent=template % (self.fileName,self.ocrText,self.fileName,wikicats)
+        else:
+            template="""[[File:%s]]
+%s
+<headertabs/>"""
+            pageContent=template % (self.fileName,wikicats)
+    
+        return pageContent
         
-        """
         

@@ -4,10 +4,11 @@ Created on 2021-03-21
 @author: wf
 '''
 import sys
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 from scan.wikiuploaddialog import WikiUploadDialog
 from wikibot.wikiuser import WikiUser
+from wikibot.wikipush import WikiPush
 
 class Scan2Wiki(object):
     '''
@@ -40,8 +41,18 @@ class Scan2Wiki(object):
         '''
         call back
         '''
-        print ("uploading %s to %s ... " % (upload,wikiUser))
-        
+        pageContent=upload.getContent()
+        ignoreExists=True
+        wikipush=WikiPush(fromWikiId=None,toWikiId=wikiUser,login=True)
+        description="scanned at %s" % upload.timestampStr
+        msg="uploading %s (%s) to %s ... " % (upload.pageTitle,upload.fileName,wikiUser)
+        files=[upload.scannedFile]
+        wikipush.upload(files,force=ignoreExists)
+        pageToBeEdited=wikipush.toWiki.getPage(upload.pageTitle)
+        if (not pageToBeEdited.exists) or ignoreExists:
+            pageToBeEdited.edit(pageContent,description)
+            wikipush.log(msg+"✅")
+            pass
         
 __version__ = "0.0.7"
 __date__ = '2021-03-21'

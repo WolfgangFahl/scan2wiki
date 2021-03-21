@@ -29,6 +29,7 @@ class WikiUploadDialog(object):
             for i,file in enumerate(files):
                 if file:
                     uploadEntry=uploadEntries[i]
+                    uploadEntry.fromTk()
                     callback(wikiSelect.get(),uploadEntry)
             
         wikiIds=[]

@@ -13,7 +13,7 @@ class TestPDFExtract(unittest.TestCase):
 
     def setUp(self):
         self.testdata = "%s/data" % path.abspath(path.dirname(__file__))
-        self.debug=True
+        self.debug=False
         pass
 
 
