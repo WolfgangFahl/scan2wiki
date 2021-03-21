@@ -1,3 +1,5 @@
 # Mediawiki and SMW API
 # https://pypi.org/project/py-3rdparty-mediawiki/
 py-3rdparty-mediawiki>=0.1.23
+# https://pypi.org/project/PyPDF2/
+pyPDF2

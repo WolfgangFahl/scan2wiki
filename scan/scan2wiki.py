@@ -4,19 +4,44 @@ Created on 2021-03-21
 @author: wf
 '''
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 from argparse import RawDescriptionHelpFormatter
+from scan.wikiuploaddialog import WikiUploadDialog
+from wikibot.wikiuser import WikiUser
 
 class Scan2Wiki(object):
     '''
-    classdocs
+    scan documents to wikis
     '''
 
-
-    def __init__(self):
+    def __init__(self,debug=False):
         '''
         Constructor
+        
+        Args:
+            debug(bool): True if debugging should be switched on
         '''
+        self.debug=debug
+        
+    def upload(self,files):
+        '''
+        upload the given list of files
+        
+        Args:
+            files(list): a list of files (io.TextIoWrapper ...)
+        '''
+        for file in files:
+            print(file)
+        wikiUsers=WikiUser.getWikiUsers()    
+        uploadDialog= WikiUploadDialog(wikiUsers)
+        uploadDialog.show(files,self.uploadFile)
+        
+    def uploadFile(self,wikiUser,upload):
+        '''
+        call back
+        '''
+        print ("uploading %s to %s ... " % (upload,wikiUser))
+        
         
 __version__ = "0.0.7"
 __date__ = '2021-03-21'
@@ -52,9 +77,11 @@ def main(argv=None): # IGNORE:C0111
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-d", "--debug", dest="debug",   action="store_true", help="set debug level [default: %(default)s]")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument('files', nargs='+')
         args = parser.parse_args(argv)
  
-        scan2Wiki=Scan2Wiki()
+        scan2Wiki=Scan2Wiki(args.debug)
+        scan2Wiki.upload(args.files)
         
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###

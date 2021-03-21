@@ -1,0 +1,4 @@
+#!/bin/bash
+# WF 2021-03-21
+# install for MacOS
+python macsetup.py py2app -A
