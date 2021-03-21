@@ -1,0 +1,72 @@
+'''
+Created on 2021-03-21
+
+@author: wf
+'''
+import sys
+from argparse import ArgumentParser
+from argparse import RawDescriptionHelpFormatter
+
+class Scan2Wiki(object):
+    '''
+    classdocs
+    '''
+
+
+    def __init__(self):
+        '''
+        Constructor
+        '''
+        
+__version__ = "0.0.7"
+__date__ = '2021-03-21'
+__updated__ = '2021-03-21'
+DEBUG=False
+        
+def main(argv=None): # IGNORE:C0111
+    '''main program.'''
+    if argv is None:
+        argv = sys.argv[1:]
+
+    program_name = "scan2wiki"
+    program_version = "v%s" % __version__
+    program_build_date = str(__updated__)
+    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    program_shortdesc = "scan into a Semantic MediaWiki"
+    user_name="Wolfgang Fahl"
+
+    program_license = '''%s
+
+  Created by %s on %s.
+  Copyright 2021 Wolfgang Fahl. All rights reserved.
+
+  Licensed under the Apache License 2.0
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Distributed on an "AS IS" basis without warranties
+  or conditions of any kind, either express or implied.
+
+''' % (program_shortdesc,user_name, str(__date__))
+    
+    try:
+        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser.add_argument("-d", "--debug", dest="debug",   action="store_true", help="set debug level [default: %(default)s]")
+        parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        args = parser.parse_args(argv)
+ 
+        scan2Wiki=Scan2Wiki()
+        
+    except KeyboardInterrupt:
+        ### handle keyboard interrupt ###
+        return 1
+    except Exception as e:
+        if DEBUG:
+            raise(e)
+        indent = len(program_name) * " "
+        sys.stderr.write(program_name + ": " + repr(e) + "\n")
+        sys.stderr.write(indent + "  for help use --help")
+        return 2
+        
+if __name__ == "__main__":
+    sys.exit(main())
+        
