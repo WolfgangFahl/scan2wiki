@@ -3,6 +3,7 @@
 	<name>scan2wiki</name>
 	<comment></comment>
 	<projects>
+		<project>pyFlaskBootstrap4</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

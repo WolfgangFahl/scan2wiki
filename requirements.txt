@@ -1,5 +1,11 @@
 # Mediawiki and SMW API
 # https://pypi.org/project/py-3rdparty-mediawiki/
-py-3rdparty-mediawiki>=0.1.23
+py-3rdparty-mediawiki>=0.4.2
 # https://pypi.org/project/PyPDF2/
 pyPDF2
+# web server with Flask and Bootstrap4
+# pyFlaskBootstrap4>=0.2.8
+# https://pypi.org/project/watchdog/
+watchdog
+# https://pypi.org/project/APScheduler/
+APScheduler

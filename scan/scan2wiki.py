@@ -3,6 +3,8 @@ Created on 2021-03-21
 
 @author: wf
 '''
+import os
+os.environ["PYWIKIBOT_NO_USER_CONFIG"]="2"
 import sys
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
@@ -54,9 +56,9 @@ class Scan2Wiki(object):
             wikipush.log(msg+"✅")
             pass
         
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 __date__ = '2021-03-21'
-__updated__ = '2021-03-21'
+__updated__ = '2021-03-22'
 DEBUG=False
         
 def main(argv=None): # IGNORE:C0111
