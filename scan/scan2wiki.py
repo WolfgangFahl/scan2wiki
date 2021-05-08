@@ -11,6 +11,7 @@ from argparse import RawDescriptionHelpFormatter
 from scan.wikiuploaddialog import WikiUploadDialog
 from wikibot.wikiuser import WikiUser
 from wikibot.wikipush import WikiPush
+from scan.folderwatcher import Watcher
 
 class Scan2Wiki(object):
     '''
@@ -88,12 +89,18 @@ def main(argv=None): # IGNORE:C0111
     
     try:
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser.add_argument("-w", "--watch", help="directory to watch for incoming files")
         parser.add_argument("-d", "--debug", dest="debug",   action="store_true", help="set debug level [default: %(default)s]")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument('files', nargs='+')
+        parser.add_argument('--files', nargs='+')
         args = parser.parse_args(argv)
  
         scan2Wiki=Scan2Wiki(args.debug)
+        if args.watch:
+            watcher=Watcher(args.watch)
+            def onFileEvent(file):
+                scan2Wiki.upload([file])
+            watcher.run(onFileEvent)
         scan2Wiki.upload(args.files)
         
     except KeyboardInterrupt:

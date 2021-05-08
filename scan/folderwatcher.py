@@ -37,7 +37,7 @@ class Watcher:
             sleepTime(float): how often to check for incoming files - default: 1.0 secs
             limit(float): the maximum time to run the server default: unlimited
         '''
-        event_handler = Handler(callback,patterns=self.patterns)
+        event_handler = Handler(callback,patterns=self.patterns,debug=self.debug)
         self.observer.schedule(event_handler, self.path, recursive=True)
         self.observer.start()
         runTime=0
@@ -60,15 +60,17 @@ class Handler(PatternMatchingEventHandler):
     '''
     handle changes for a given wildcard pattern
     '''
-    def __init__(self,callback,patterns):
+    def __init__(self,callback,patterns,debug=False):
         '''
         construct me
         
         Args:
             callback: the function to call
             patterns: the patterns to trigger on
+            debug(bool): if True print debug output
         '''
         self.callback=callback
+        self.debug=debug
         # Set the patterns for PatternMatchingEventHandler
         PatternMatchingEventHandler.__init__(
             self,
@@ -78,10 +80,14 @@ class Handler(PatternMatchingEventHandler):
         )
 
     def on_any_event(self, event):
-        print(
-            "[{}] noticed: [{}] on: [{}] ".format(
-                time.asctime(), event.event_type, event.src_path
+        if self.debug:
+            print(
+                "[{}] noticed: [{}] on: [{}] ".format(
+                    time.asctime(), event.event_type, event.src_path
+                )
+                
             )
-        )
-        
+        if "modified" == event.event_type:
+            self.callback(event.src_path)
+            
         

@@ -8,19 +8,21 @@ from scan.folderwatcher import Watcher
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
-import time
 
 class TestFolderWatch(unittest.TestCase):
 
 
     def setUp(self):
+        self.file=None
+        self.debug=False
         pass
 
 
     def tearDown(self):
         pass
     
-    def onFileEvent(self):
+    def onFileEvent(self,file):
+        self.file=file
         pass
     
     def addFile(self,watchdir):
@@ -31,7 +33,7 @@ class TestFolderWatch(unittest.TestCase):
     def testFolderWatch(self):
         watchdir="/tmp/folderwatch"
         os.makedirs(watchdir,exist_ok=True)
-        watcher=Watcher(watchdir,patterns=["*.txt"])
+        watcher=Watcher(watchdir,patterns=["*.txt"],debug=self.debug)
         sleepTime=1
         limit=3
         scheduler = BackgroundScheduler()
@@ -40,6 +42,7 @@ class TestFolderWatch(unittest.TestCase):
         scheduler.add_job(self.addFile, 'date',run_date=run_date,kwargs={"watchdir":watchdir})
         scheduler.start()
         watcher.run(self.onFileEvent, sleepTime, limit)
+        self.assertIsNotNone(self.file)
         
         pass
 
