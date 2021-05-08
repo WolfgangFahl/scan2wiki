@@ -6,13 +6,14 @@ Created on 2021-03-26
 
 from fb4.app import AppWrap
 from flask import render_template
-from fb4.widgets import DropDownMenu, Menu, MenuItem, Link
+from fb4.widgets import  Menu, MenuItem
 from wtforms import validators
-from wtforms.fields.html5 import EmailField
-from wtforms import  SelectField,  TextField, SubmitField,  TextAreaField
+from wtforms import  SelectField,  TextField, SubmitField,  FileField
+from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 import sys
 import os
+from pathlib import Path
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 werkzeug.cached_property = werkzeug.utils.cached_property
@@ -62,6 +63,9 @@ class Scan2WikiServer(AppWrap):
         title="Scan2Wiki"
         template="watch.html"
         watchForm=WatchForm()
+        if watchForm.validate_on_submit():
+            filename = secure_filename(watchForm.file.data.filename)
+            pass
         html=render_template(template, title=title, menu=self.getMenu(),watchForm=watchForm)
         return html
     
@@ -69,7 +73,6 @@ class Scan2WikiServer(AppWrap):
         menu=Menu()
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
-        menu.addItem(MenuItem("/imprint","Imprint"))
         return menu
         
     @staticmethod
@@ -86,7 +89,8 @@ class WatchForm(FlaskForm):
     """
     Watch directory form
     """
-    name = TextField('Name',[validators.DataRequired()],render_kw={'placeholder': 'Some name'})
+    home = str(Path.home())
+    scandirField = FileField('Scandir',[validators.DataRequired()],render_kw={'placeholder': f'{home}'})
     submit = SubmitField()
     
         
