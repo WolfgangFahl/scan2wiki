@@ -11,3 +11,5 @@ watchdog
 APScheduler
 # https://pypi.org/project/Flask-AutoIndex/0.6.6/
 Flask-AutoIndex
+# dependency of Flask-AutoIndex
+Flask-Silk

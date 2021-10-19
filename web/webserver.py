@@ -16,13 +16,14 @@ import os
 from pathlib import Path
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
+from flask.helpers import send_from_directory
 werkzeug.cached_property = werkzeug.utils.cached_property
 from flask_autoindex import AutoIndex
 
 
 class Scan2WikiServer(AppWrap):
     ''' 
-    Wrapper for Flask Web Application 
+    Web app for scanning documents to a wiki
     '''
     
     def __init__(self, host='0.0.0.0', port=8334, debug=False):
@@ -32,7 +33,9 @@ class Scan2WikiServer(AppWrap):
         scriptdir = os.path.dirname(os.path.abspath(__file__))
         template_folder=scriptdir + '/../templates'
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
-        self.scandir="/Users/wf/Pictures/scan"
+        home = str(Path.home())
+        self.scandir=f"{home}/Pictures/scans"
+        os.makedirs(self.scandir, exist_ok=True)
         
         @self.app.route('/')
         def homeroute():
@@ -60,9 +63,16 @@ class Scan2WikiServer(AppWrap):
     def files(self,path):
         '''
         show the files in the given path
+        
+        Args:
+            path(str): the path to render
         '''
-        files_index = AutoIndex(self.app, self.scandir, add_url_rules=False)
-        return files_index.render_autoindex(path)
+        fullpath=f"{self.scandir}/{path}"
+        if os.path.isdir(fullpath):
+            files_index = AutoIndex(self.app, self.scandir, add_url_rules=False)
+            return files_index.render_autoindex(path)
+        else:
+            return send_from_directory(self.scandir,path)
 
     
     def watchDir(self):
@@ -82,6 +92,7 @@ class Scan2WikiServer(AppWrap):
         menu=Menu()
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
+        menu.addItem(MenuItem('http://wiki.bitplan.com/index.php/scan2wiki',"Docs")),
         menu.addItem(MenuItem('https://github.com/WolfgangFahl/scan2wiki','github'))
         return menu
         
