@@ -14,4 +14,4 @@ Scan from ScanSnap to SemanticMediaWiki
 * [scan2wiki on pypi](https://pypi.org/project/scan2wiki)
 
 ## Documentation
-[Wiki](http://mediawiki-japi.bitplan.com/index.php/scan2wiki)
+[Wiki](http://wiki.bitplan.com/index.php/scan2wiki)

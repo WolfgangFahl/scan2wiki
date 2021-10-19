@@ -48,6 +48,9 @@ class Scan2WikiServer(AppWrap):
             return self.watchDir()
         
     def home(self):
+        '''
+        show the main page
+        '''
         template="index.html"
         title="Scan2Wiki"
         
@@ -55,6 +58,9 @@ class Scan2WikiServer(AppWrap):
         return html
     
     def files(self,path):
+        '''
+        show the files in the given path
+        '''
         files_index = AutoIndex(self.app, self.scandir, add_url_rules=False)
         return files_index.render_autoindex(path)
 
@@ -70,9 +76,13 @@ class Scan2WikiServer(AppWrap):
         return html
     
     def getMenu(self):
+        '''
+        set up the menu for this application
+        '''
         menu=Menu()
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
+        menu.addItem(MenuItem('https://github.com/WolfgangFahl/scan2wiki','github'))
         return menu
         
     @staticmethod
