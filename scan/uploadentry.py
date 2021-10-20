@@ -25,11 +25,12 @@ class UploadEntry(object):
         self.timestampStr=ftime.strftime("%Y-%m-%d %H:%M:%S")
         self.scannedFile=fullpath
         self.fileName=Path(self.scannedFile).name
-        self.baseName=os.path.basename(self.fileName)
+        self.baseName=Path(self.scannedFile).stem
         self.pageTitle=f"{self.baseName}"
         
         self.categories="2021"
         self.topic="OCRDocument"
+        self.wikiUser="test"
         self.ocrText=self.getPDFText()
         pass        
     

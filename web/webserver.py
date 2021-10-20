@@ -6,8 +6,9 @@ Created on 2021-03-26
 
 from fb4.app import AppWrap
 from flask import render_template, url_for
-from fb4.widgets import  Menu, MenuItem, Link
+from fb4.widgets import  Menu, MenuItem, Link,Widget
 from wtforms import validators
+from wtforms.widgets import HiddenInput
 from wtforms import  SelectField,  TextField, TextAreaField, SubmitField,  FileField
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
@@ -185,12 +186,22 @@ class WatchForm(FlaskForm):
     scandirField = FileField('Scandir',[validators.DataRequired()],render_kw={'placeholder': f'{home}'})
     submit = SubmitField()
     
+class LinkWidget(HiddenInput):
+    def __call__(self, field, **kwargs):
+        if field.data and isinstance(field.data,Widget):
+            html=field.data.render()
+        else:
+            html=""
+        return html
+        
+    
 class UploadForm(FlaskForm):
     '''
     upload form
     '''
     submit=SubmitField('upload')
     pageTitle=TextField('pagetitle',[validators.DataRequired()])
+    pageLink=TextField('pagelink',widget=LinkWidget())
     # https://stackoverflow.com/q/21217475/1497139
     wikiUser=SelectField('Wiki', choices=[('fahl', 'fahl.bitplan.com'),('media', 'media.bitplan.com'),('scan', 'scan.bitplan.com'), ('test', 'test.bitplan.com') ])
     scannedFile=TextField('scannedFile')
@@ -203,7 +214,10 @@ class UploadForm(FlaskForm):
         '''
         fill my from from the given uploadEntry
         '''
+        self.wikiUser.data=u.wikiUser
         self.pageTitle.data=u.pageTitle
+        wikiLink=f"http://{u.wikiUser}.bitplan.com/index.php/{u.pageTitle}"
+        self.pageLink.data=Link(wikiLink,u.pageTitle)
         self.scannedFile.data=u.scannedFile
         self.topic.data=u.topic
         self.categories.data=u.categories
