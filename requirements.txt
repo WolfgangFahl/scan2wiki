@@ -2,7 +2,7 @@
 # https://pypi.org/project/py-3rdparty-mediawiki/
 py-3rdparty-mediawiki>=0.4.6
 # https://github.com/claird/PyPDF4
-pyPDF4
+pyPDF2
 # web server with Flask and Bootstrap4
 # pyFlaskBootstrap4>=0.2.14
 # https://pypi.org/project/watchdog/
@@ -13,3 +13,4 @@ APScheduler
 #Flask-AutoIndex
 # dependency of Flask-AutoIndex
 #Flask-Silk
+flask-dropzone
