@@ -1,15 +1,15 @@
 # Mediawiki and SMW API
 # https://pypi.org/project/py-3rdparty-mediawiki/
 py-3rdparty-mediawiki>=0.4.6
-# https://pypi.org/project/PyPDF2/
-pyPDF2
+# https://github.com/claird/PyPDF4
+pyPDF4
 # web server with Flask and Bootstrap4
-# pyFlaskBootstrap4>=0.2.14å
+# pyFlaskBootstrap4>=0.2.14
 # https://pypi.org/project/watchdog/
 watchdog
 # https://pypi.org/project/APScheduler/
 APScheduler
 # https://pypi.org/project/Flask-AutoIndex/0.6.6/
-Flask-AutoIndex
+#Flask-AutoIndex
 # dependency of Flask-AutoIndex
-Flask-Silk
+#Flask-Silk

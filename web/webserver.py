@@ -9,7 +9,7 @@ from flask import render_template, url_for
 from fb4.widgets import  Menu, MenuItem, Link,Widget
 from wtforms import validators
 from wtforms.widgets import HiddenInput
-from wtforms import  SelectField,  TextField, TextAreaField, SubmitField,  FileField
+from wtforms import  SelectField,  StringField, TextAreaField, SubmitField,  FileField
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from pathlib import Path
@@ -19,13 +19,11 @@ from wikibot.wikiuser import WikiUser
 import sys
 import os
 
-
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 from flask.helpers import send_from_directory
 werkzeug.cached_property = werkzeug.utils.cached_property
 from scan.scan2wiki import Scan2Wiki
-
 
 class Scan2WikiServer(AppWrap):
     ''' 
@@ -200,13 +198,13 @@ class UploadForm(FlaskForm):
     upload form
     '''
     submit=SubmitField('upload')
-    pageTitle=TextField('pagetitle',[validators.DataRequired()])
-    pageLink=TextField('pagelink',widget=LinkWidget())
+    pageTitle=StringField('pagetitle',[validators.DataRequired()])
+    pageLink=StringField('pagelink',widget=LinkWidget())
     # https://stackoverflow.com/q/21217475/1497139
     wikiUser=SelectField('Wiki', choices=[('fahl', 'fahl.bitplan.com'),('media', 'media.bitplan.com'),('scan', 'scan.bitplan.com'), ('test', 'test.bitplan.com') ])
-    scannedFile=TextField('scannedFile')
-    categories=TextField('categories')
-    topic=TextField('topic')
+    scannedFile=StringField('scannedFile')
+    categories=StringField('categories')
+    topic=StringField('topic')
     # https://stackoverflow.com/a/23256596/1497139
     ocrText=TextAreaField('Text', render_kw={"rows": 15, "cols": 60})
     
@@ -222,10 +220,12 @@ class UploadForm(FlaskForm):
         self.topic.data=u.topic
         self.categories.data=u.categories
         self.ocrText.data=u.getPDFText()
-    
-        
-if __name__ == '__main__':
+
+def main():
     sysargs=sys.argv[1:]
     server=Scan2WikiServer.startServer(sysargs)
+        
+if __name__ == '__main__':
+    sys.exit(main()) 
     
     
