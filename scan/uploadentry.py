@@ -4,31 +4,33 @@ Created on 2021-03-21
 @author: wf
 '''
 from datetime import datetime
-import tkinter as tk
 import PyPDF2
+import os
 from pathlib import Path
+from wikibot.wikipush import WikiPush
 
 class UploadEntry(object):
-    
-    def __init__(self,index,file):
-        self.index=index
-        self.timestamp=datetime.now()
-        self.fields=[
-            { "name": "pageTitle","label":"page title" },
-            { "name": "scannedFile","label":"scanned file" },
-            { "name": "categories","label":"categories" },
-            { "name": "topic","label":"topic" },
-            { "name": "ocrText","label":"ocr text","height":20}
-        ]
-        self.timestampStr=self.timestamp.strftime('%Y-%m-%d%H%M%S')
-        self.pageTitle="scan%s-%02d" % (self.timestampStr,index+1)
-        self.scannedFile=file
+    '''
+    a single upload entry
+    '''     
+    def __init__(self,directory,path):
+        '''
+        construct me
+        
+        Args:
+            
+        '''
+        fullpath=f"{directory}/{path}"
+        ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
+        self.timestampStr=ftime.strftime("%Y-%m-%d %H:%M:%S")
+        self.scannedFile=fullpath
         self.fileName=Path(self.scannedFile).name
+        self.baseName=os.path.basename(self.fileName)
+        self.pageTitle=f"{self.baseName}"
         
         self.categories="2021"
         self.topic="OCRDocument"
         self.ocrText=self.getPDFText()
-        self.fieldTexts={}
         pass        
     
     def __str__(self):
@@ -40,24 +42,10 @@ class UploadEntry(object):
             delim=","
         return text  
     
-    def fromTk(self):
-        for field in self.fields:
-            fieldname=field['name']
-            self.__dict__[fieldname]=self.fieldTexts[fieldname].get("1.0","end-1c")
-    
-    def add2Tk(self,top,row):
-        for col,field in enumerate(self.fields):
-            fieldname=field['name']
-            if self.index==0:
-                headerLabel=tk.Label(text=fieldname)
-                headerLabel.grid(column=0,row=row+col)
-            height=field['height'] if 'height' in field else 1
-            text=tk.Text(top,height=height)
-            text.insert(tk.INSERT,self.__dict__[fieldname])
-            text.grid(column=1,row=row+col)
-            self.fieldTexts[fieldname]=text
-            
     def getPDFText(self):
+        '''
+        get my PDF Text
+        '''
         pdfText=None
         if self.scannedFile.lower().endswith("pdf"):
             pdfText=""
@@ -73,8 +61,30 @@ class UploadEntry(object):
                 delim="\n"
         return pdfText
             
+    def uploadFile(self,wikiUser):
+        '''
+        call back
+        '''
+        pageContent=self.getContent()
+        ignoreExists=True
+        wikipush=WikiPush(fromWikiId=None,toWikiId=wikiUser,login=True)
+        description=f"scanned at {self.timestampStr}"  
+        msg=f"uploading {self.pageTitle} ({self.fileName}) to {wikiUser} ... " 
+        files=[self.scannedFile]
+        wikipush.upload(files,force=ignoreExists)
+        pageToBeEdited=wikipush.toWiki.getPage(self.pageTitle)
+        if (not pageToBeEdited.exists) or ignoreExists:
+            pageToBeEdited.edit(pageContent,description)
+            wikipush.log(msg+"✅")
+            pass
             
     def getContent(self):
+        '''
+        get my content
+        
+        Return:
+            str: the content of the wikipage
+        '''
         wikicats=""
         delim=""
         for category in self.categories.split(','):
@@ -98,5 +108,4 @@ class UploadEntry(object):
             pageContent=template % (self.fileName,wikicats)
     
         return pageContent
-        
         

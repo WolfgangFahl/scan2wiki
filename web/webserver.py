@@ -8,11 +8,13 @@ from fb4.app import AppWrap
 from flask import render_template, url_for
 from fb4.widgets import  Menu, MenuItem, Link
 from wtforms import validators
-from wtforms import  SelectField,  TextField, SubmitField,  FileField
+from wtforms import  SelectField,  TextField, TextAreaField, SubmitField,  FileField
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from pathlib import Path
 from datetime import datetime
+from scan.uploadentry import UploadEntry
+from wikibot.wikiuser import WikiUser
 import sys
 import os
 
@@ -21,7 +23,6 @@ import os
 import werkzeug
 from flask.helpers import send_from_directory
 werkzeug.cached_property = werkzeug.utils.cached_property
-from flask_autoindex import AutoIndex
 from scan.scan2wiki import Scan2Wiki
 
 
@@ -38,6 +39,8 @@ class Scan2WikiServer(AppWrap):
         template_folder=scriptdir + '/../templates'
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
         self.scandir=Scan2Wiki.getScanDir()
+        self.wikiUsers=WikiUser.getWikiUsers()
+
         
         @self.app.route('/')
         def homeroute():
@@ -51,6 +54,14 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/scandir')
         def showScanDirectory():
             return self.watchDir()
+        
+        @self.app.route('/delete/<path:path>')
+        def delete(path=None):
+            return self.delete(path)
+        
+        @self.app.route('/upload/<path:path>',methods=['GET', 'POST'])
+        def upload(path=None):
+            return self.upload(path)
         
     def home(self):
         '''
@@ -67,7 +78,7 @@ class Scan2WikiServer(AppWrap):
         '''
         scanFiles=[]
         for path in os.listdir(self.scandir):
-            fullpath=f"{self.scandir}/{path}"
+            fullpath=self.getFullPath(path)
             ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
             ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
             size=os.path.getsize(fullpath)
@@ -75,15 +86,32 @@ class Scan2WikiServer(AppWrap):
             scanFile={
                 'name': fileLink,
                 'lastModified': ftimestr,
-                'size': size
+                'size': size,
+                'delete': Link(self.basedUrl(url_for('delete',path=path)),'❌'),
+                'upload': Link(self.basedUrl(url_for('upload',path=path)),'⇧')
                 
             }
             scanFiles.append(scanFile)
-        lodKeys=["name","lastModified","size"]    
+        lodKeys=["name","lastModified","size","delete","upload"]    
         tableHeaders=lodKeys
         return scanFiles,lodKeys,tableHeaders
     
-    def files(self,path):
+    def getFullPath(self,path):
+        path=secure_filename(path)
+        fullpath=f"{self.scandir}/{path}"
+        return fullpath
+    
+    def delete(self,path):
+        '''
+        Args:
+            path(str): the file to delete
+        '''
+        fullpath=self.getFullPath(path)
+        os.remove(fullpath)
+        return self.files()
+        
+    
+    def files(self,path="."):
         '''
         show the files in the given path
         
@@ -100,6 +128,24 @@ class Scan2WikiServer(AppWrap):
             return send_from_directory(self.scandir,path)
 
     
+    def upload(self,path):
+        '''
+        upload a single file to a wiki
+        
+        Args:
+            path(str): the path to render
+        '''
+        title='upload'
+        template="upload.html"
+        uploadEntry=UploadEntry(self.scandir,path)
+        uploadForm=UploadForm()
+        uploadForm.fromUploadEntry(uploadEntry)
+        if uploadForm.validate_on_submit():
+            uploadEntry.uploadFile(uploadForm.wikiUser.data)
+            pass
+        html=render_template(template, title=title, menu=self.getMenuList(),uploadForm=uploadForm)
+        return html
+        
     def watchDir(self):
         title="Scan2Wiki"
         template="watch.html"
@@ -138,6 +184,30 @@ class WatchForm(FlaskForm):
     home = str(Path.home())
     scandirField = FileField('Scandir',[validators.DataRequired()],render_kw={'placeholder': f'{home}'})
     submit = SubmitField()
+    
+class UploadForm(FlaskForm):
+    '''
+    upload form
+    '''
+    submit=SubmitField('upload')
+    pageTitle=TextField('pagetitle',[validators.DataRequired()])
+    # https://stackoverflow.com/q/21217475/1497139
+    wikiUser=SelectField('Wiki', choices=[('fahl', 'fahl.bitplan.com'),('media', 'media.bitplan.com'),('scan', 'scan.bitplan.com'), ('test', 'test.bitplan.com') ])
+    scannedFile=TextField('scannedFile')
+    categories=TextField('categories')
+    topic=TextField('topic')
+    # https://stackoverflow.com/a/23256596/1497139
+    ocrText=TextAreaField('Text', render_kw={"rows": 15, "cols": 60})
+    
+    def fromUploadEntry(self,u:UploadEntry):
+        '''
+        fill my from from the given uploadEntry
+        '''
+        self.pageTitle.data=u.pageTitle
+        self.scannedFile.data=u.scannedFile
+        self.topic.data=u.topic
+        self.categories.data=u.categories
+        self.ocrText.data=u.getPDFText()
     
         
 if __name__ == '__main__':
