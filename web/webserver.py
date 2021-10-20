@@ -184,14 +184,16 @@ class WatchForm(FlaskForm):
     scandirField = FileField('Scandir',[validators.DataRequired()],render_kw={'placeholder': f'{home}'})
     submit = SubmitField()
     
-class LinkWidget(HiddenInput):
+class WidgetWrapper(HiddenInput):
+    '''
+    wraps an fb4 widget
+    '''
     def __call__(self, field, **kwargs):
         if field.data and isinstance(field.data,Widget):
             html=field.data.render()
         else:
             html=""
         return html
-        
     
 class UploadForm(FlaskForm):
     '''
@@ -199,7 +201,7 @@ class UploadForm(FlaskForm):
     '''
     submit=SubmitField('upload')
     pageTitle=StringField('pagetitle',[validators.DataRequired()])
-    pageLink=StringField('pagelink',widget=LinkWidget())
+    pageLink=StringField('pagelink',widget=WidgetWrapper())
     # https://stackoverflow.com/q/21217475/1497139
     wikiUser=SelectField('Wiki', choices=[('fahl', 'fahl.bitplan.com'),('media', 'media.bitplan.com'),('scan', 'scan.bitplan.com'), ('test', 'test.bitplan.com') ])
     scannedFile=StringField('scannedFile')

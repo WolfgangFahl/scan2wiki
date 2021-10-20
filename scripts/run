@@ -93,7 +93,6 @@ killifrunning() {
 # start the scan2wiki  server
 #
 startServer() {
-  local l_users="$1"
   local l_logdir=/var/log/scan2wiki
   local l_logfile=scan2wiki.log
   color_msg $blue "starting server only"
@@ -105,7 +104,7 @@ startServer() {
   sudo chown $USER $l_logdir
   sudo chgrp $(id -gn) $l_logdir
   export PYTHONPATH="."
-  nohup python3 $pyapp --verbose -u $l_users > $l_logdir/$l_logfile 2>&1 &
+  nohup python3 $pyapp $l_users > $l_logdir/$l_logfile 2>&1 &
   color_msg $green "log is at $l_logdir/$l_logfile"
 }
 
@@ -123,7 +122,7 @@ do
       usage
       exit 0;;
     -s)
-      startServer 
+      startServer
       ;;
     -c)
      color_msg $blue "starting in client mode"
