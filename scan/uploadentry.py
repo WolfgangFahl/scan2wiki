@@ -4,7 +4,7 @@ Created on 2021-03-21
 @author: wf
 '''
 from datetime import datetime
-import PyPDF2
+from scan.pdf import PDFMiner
 import os
 from pathlib import Path
 from wikibot.wikipush import WikiPush
@@ -36,9 +36,9 @@ class UploadEntry(object):
     
     def __str__(self):
         text="Upload:"
+        self.fields=['fileName','ocrText']
         delim=""
-        for field in self.fields:
-            fieldname=field['name']
+        for fieldname in self.fields:
             text+="%s%s=%s" % (delim,fieldname,self.__dict__[fieldname])   
             delim=","
         return text  
@@ -49,17 +49,7 @@ class UploadEntry(object):
         '''
         pdfText=None
         if self.scannedFile.lower().endswith("pdf"):
-            pdfText=""
-            pdf_file = open(self.scannedFile, 'rb')
-            read_pdf = PyPDF2.PdfFileReader(pdf_file)
-            number_of_pages = read_pdf.getNumPages()
-            pdfText=""
-            delim=""
-            for pageNo in range(number_of_pages):
-                page = read_pdf.getPage(pageNo)
-                page_content = page.extractText()
-                pdfText+=delim+page_content
-                delim="\n"
+            pdfText=PDFMiner.getPDFText(self.scannedFile)
         return pdfText
             
     def uploadFile(self,wikiUser):

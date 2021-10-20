@@ -136,12 +136,15 @@ class Scan2WikiServer(AppWrap):
         '''
         title='upload'
         template="upload.html"
-        uploadEntry=UploadEntry(self.scandir,path)
         uploadForm=UploadForm()
-        uploadForm.fromUploadEntry(uploadEntry)
         if uploadForm.validate_on_submit():
+            uploadEntry=uploadForm.toUploadEntry(self.scandir)
             uploadEntry.uploadFile(uploadForm.wikiUser.data)
+        else:
+            uploadEntry=UploadEntry(self.scandir,path)
+            uploadForm.fromUploadEntry(uploadEntry)
             pass
+        uploadForm.update()
         html=render_template(template, title=title, menu=self.getMenuList(),uploadForm=uploadForm)
         return html
         
@@ -210,18 +213,36 @@ class UploadForm(FlaskForm):
     # https://stackoverflow.com/a/23256596/1497139
     ocrText=TextAreaField('Text', render_kw={"rows": 15, "cols": 60})
     
+    def update(self):
+        pageTitle=f"{self.pageTitle.data}"
+        wikiLink=f"http://{self.wikiUser.data}.bitplan.com/index.php/{pageTitle}"
+        self.pageLink.data=Link(wikiLink,pageTitle)
+ 
     def fromUploadEntry(self,u:UploadEntry):
         '''
         fill my from from the given uploadEntry
         '''
+        self.scannedFile.data=u.fileName
         self.wikiUser.data=u.wikiUser
         self.pageTitle.data=u.pageTitle
-        wikiLink=f"http://{u.wikiUser}.bitplan.com/index.php/{u.pageTitle}"
-        self.pageLink.data=Link(wikiLink,u.pageTitle)
-        self.scannedFile.data=u.scannedFile
         self.topic.data=u.topic
         self.categories.data=u.categories
         self.ocrText.data=u.getPDFText()
+        
+    def toUploadEntry(self,scandir):
+        '''
+        convert me to an upload entry
+        
+        Return:
+            UploadEntry: the upload entry to use
+        '''
+        u=UploadEntry(scandir,self.scannedFile.data)
+        u.wikiUser=self.wikiUser.data
+        u.pageTitle=self.pageTitle.data
+        u.topic=self.topic.data
+        u.categories=self.categories.data
+        u.ocrText=self.ocrText.data
+        return u
 
 def main():
     sysargs=sys.argv[1:]
