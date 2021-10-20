@@ -6,6 +6,7 @@ Created on 2021-03-21
 import os
 os.environ["PYWIKIBOT_NO_USER_CONFIG"]="2"
 import sys
+from pathlib import Path
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
 from scan.wikiuploaddialog import WikiUploadDialog
@@ -27,6 +28,19 @@ class Scan2Wiki(object):
         '''
         self.debug=debug
         
+    @staticmethod
+    def getScanDir():
+        '''
+        get the scan/watch directory to be used
+        
+        Returns:
+            str: the path to the scan directory
+        '''
+        home = str(Path.home())
+        scandir=f"{home}/Pictures/scans"
+        os.makedirs(scandir, exist_ok=True)
+        return scandir
+        
     def upload(self,files):
         '''
         upload the given list of files
@@ -47,7 +61,7 @@ class Scan2Wiki(object):
         pageContent=upload.getContent()
         ignoreExists=True
         wikipush=WikiPush(fromWikiId=None,toWikiId=wikiUser,login=True)
-        description="scanned at %s" % upload.timestampStr
+        description=f"scanned at {upload.timestampStr}"  
         msg="uploading %s (%s) to %s ... " % (upload.pageTitle,upload.fileName,wikiUser)
         files=[upload.scannedFile]
         wikipush.upload(files,force=ignoreExists)
@@ -88,8 +102,9 @@ def main(argv=None): # IGNORE:C0111
 ''' % (program_shortdesc,user_name, str(__date__))
     
     try:
+        defaultWatchdir=Scan2Wiki.getScanDir()
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-w", "--watch", help="directory to watch for incoming files")
+        parser.add_argument("-w", "--watch", help="directory to watch for incoming files",default=defaultWatchdir)
         parser.add_argument("-d", "--debug", dest="debug",   action="store_true", help="set debug level [default: %(default)s]")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument('--files', nargs='+')

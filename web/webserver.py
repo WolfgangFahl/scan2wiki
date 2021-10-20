@@ -5,20 +5,24 @@ Created on 2021-03-26
 '''
 
 from fb4.app import AppWrap
-from flask import render_template
-from fb4.widgets import  Menu, MenuItem
+from flask import render_template, url_for
+from fb4.widgets import  Menu, MenuItem, Link
 from wtforms import validators
 from wtforms import  SelectField,  TextField, SubmitField,  FileField
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
+from pathlib import Path
+from datetime import datetime
 import sys
 import os
-from pathlib import Path
+
+
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 from flask.helpers import send_from_directory
 werkzeug.cached_property = werkzeug.utils.cached_property
 from flask_autoindex import AutoIndex
+from scan.scan2wiki import Scan2Wiki
 
 
 class Scan2WikiServer(AppWrap):
@@ -33,9 +37,7 @@ class Scan2WikiServer(AppWrap):
         scriptdir = os.path.dirname(os.path.abspath(__file__))
         template_folder=scriptdir + '/../templates'
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
-        home = str(Path.home())
-        self.scandir=f"{home}/Pictures/scans"
-        os.makedirs(self.scandir, exist_ok=True)
+        self.scandir=Scan2Wiki.getScanDir()
         
         @self.app.route('/')
         def homeroute():
@@ -43,7 +45,7 @@ class Scan2WikiServer(AppWrap):
         
         @self.app.route('/files')
         @self.app.route('/files/<path:path>')
-        def autoindex(path='.'):
+        def files(path='.'):
             return self.files(path)
         
         @self.app.route('/scandir')
@@ -57,8 +59,29 @@ class Scan2WikiServer(AppWrap):
         template="index.html"
         title="Scan2Wiki"
         
-        html=render_template(template, title=title, menu=self.getMenu())
+        html=render_template(template, title=title, menu=self.getMenuList())
         return html
+    
+    def getScanFiles(self):
+        '''
+        '''
+        scanFiles=[]
+        for path in os.listdir(self.scandir):
+            fullpath=f"{self.scandir}/{path}"
+            ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
+            ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
+            size=os.path.getsize(fullpath)
+            fileLink=Link(self.basedUrl(url_for("files",path=path)),path)
+            scanFile={
+                'name': fileLink,
+                'lastModified': ftimestr,
+                'size': size
+                
+            }
+            scanFiles.append(scanFile)
+        lodKeys=["name","lastModified","size"]    
+        tableHeaders=lodKeys
+        return scanFiles,lodKeys,tableHeaders
     
     def files(self,path):
         '''
@@ -69,8 +92,10 @@ class Scan2WikiServer(AppWrap):
         '''
         fullpath=f"{self.scandir}/{path}"
         if os.path.isdir(fullpath):
-            files_index = AutoIndex(self.app, self.scandir, add_url_rules=False)
-            return files_index.render_autoindex(path)
+            # https://stackoverflow.com/questions/57073384/how-to-add-flask-autoindex-in-an-html-page
+            # return files_index.render_autoindex(path,template="scans.html")
+            dictList,lodKeys,tableHeaders=self.getScanFiles()
+            return render_template('scans.html',title="Scans",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         else:
             return send_from_directory(self.scandir,path)
 
@@ -82,10 +107,10 @@ class Scan2WikiServer(AppWrap):
         if watchForm.validate_on_submit():
             filename = secure_filename(watchForm.file.data.filename)
             pass
-        html=render_template(template, title=title, menu=self.getMenu(),watchForm=watchForm)
+        html=render_template(template, title=title, menu=self.getMenuList(),watchForm=watchForm)
         return html
     
-    def getMenu(self):
+    def getMenuList(self):
         '''
         set up the menu for this application
         '''

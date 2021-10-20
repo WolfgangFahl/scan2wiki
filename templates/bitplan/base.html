@@ -1,16 +1,9 @@
+{% from 'bootstrap/nav.html' import render_nav_item %}
 {% from 'bootstrap/utils.html' import render_messages %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>{% if title is not none %}{{ title }}{%endif %}</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    {{ bootstrap.load_css() }}
-	{% block head %}
-    {% endblock %}
-</head>
-<body>
+{% import 'bitplan/macros.html' as macros %}
+{% block header %}
+{{ macros.header(title) }}
+{% endblock %}
 	<main class="container">
 		{% if menu is not none %}{{ menu|safe }}{%endif %}
         {{ render_messages(container=False, dismissible=True) }}
@@ -28,5 +21,6 @@
     </footer>
     {% block scripts %}
     	{{ bootstrap.load_js() }}
+    	{{ macros.loadToggleText() }}
     {% endblock %}	
 </body>    
