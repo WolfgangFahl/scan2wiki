@@ -31,9 +31,8 @@ class TestUpload(unittest.TestCase):
         # don't test this in public CIs e.g. travis, github
         if self.inPublicCI(): return
         scan2Wiki=Scan2Wiki(self.debug)
-        for i,testFile in enumerate(listdir(self.testdata)):
-            testPath="%s/%s" % (self.testdata,testFile)
-            uploadEntry=UploadEntry(i,testPath)
+        for testFile in listdir(self.testdata):
+            uploadEntry=UploadEntry(self.testdata,testFile)
             scan2Wiki.uploadFile("test2", uploadEntry)
     
         pass
