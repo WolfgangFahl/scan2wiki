@@ -154,6 +154,8 @@ class Scan2WikiServer(AppWrap):
         watchForm=WatchForm()
         if watchForm.validate_on_submit():
             filename = secure_filename(watchForm.file.data.filename)
+        else:
+            watchForm.scandirField.data=self.scandir
             pass
         html=render_template(template, title=title, menu=self.getMenuList(),watchForm=watchForm)
         return html
