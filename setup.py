@@ -24,7 +24,7 @@ setup(
       'gitpython',
       'jinja2',
       'pywikibot',
-      'py-3rdparty-mediawiki'
+      'py-3rdparty-mediawiki',
       'pycryptodome',
       'mwclient',
     ],
