@@ -10,9 +10,9 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='scan2wiki',
-    version='0.0.9',
+    version='0.0.10',
 
-    packages=['scan',],
+    packages=['scan'],
     classifiers=[
             'Programming Language :: Python',
             'Programming Language :: Python :: 3.7',
@@ -24,19 +24,20 @@ setup(
       'gitpython',
       'jinja2',
       'pywikibot',
-      'pycrypto',
+      'py-3rdparty-mediawiki'
+      'pycryptodome',
       'mwclient',
     ],
     entry_points={
       'console_scripts': [
-        'scan2wiki = web.webserver:main',
+        'scan2wiki = scan.webserver:main',
       ],
     },
     author='Wolfgang Fahl',
     maintainer='Wolfgang Fahl',
     url='https://github.com/WolfgangFahl/scan2wiki',
     license='Apache License',
-    description='Scan from Scanner to Wiki',
+    description='Scan to Wiki by watching a scan folder',
     long_description=long_description,
     long_description_content_type='text/markdown'
 )
