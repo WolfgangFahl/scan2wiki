@@ -194,7 +194,7 @@ class DocumentManager(EntityManager):
         entityName="Document"
         entityPluralName="documents"
         listName=entityPluralName
-        clazz=Folder
+        clazz=Document
         tableName=name
         config=DMSStorage.getStorageConfig(mode=mode,debug=debug)
         handleInvalidListTypes=True
