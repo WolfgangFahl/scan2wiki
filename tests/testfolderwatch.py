@@ -8,19 +8,19 @@ from scan.folderwatcher import Watcher
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
+from tests.basetest import BaseTest
 
-class TestFolderWatch(unittest.TestCase):
-
+class TestFolderWatch(BaseTest):
+    '''
+    test the folder watch functionality
+    '''
 
     def setUp(self):
+        BaseTest.setUp(self)
         self.file=None
-        self.debug=False
         pass
 
 
-    def tearDown(self):
-        pass
-    
     def onFileEvent(self,file):
         self.file=file
         pass

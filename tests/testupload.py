@@ -8,22 +8,17 @@ import getpass
 from os import path,listdir
 from scan.scan2wiki import Scan2Wiki
 from scan.uploadentry import UploadEntry
+from tests.basetest import BaseTest
 
-class TestUpload(unittest.TestCase):
+class TestUpload(BaseTest):
+    '''
+    test uploading to a mediawiki
+    '''
 
 
     def setUp(self):
+        BaseTest.setUp(self)
         self.testdata = "%s/data" % path.abspath(path.dirname(__file__))
-        self.debug=True
-        pass
-
-    def inPublicCI(self):
-        '''
-        are we running in a public Continuous Integration Environment?
-        '''
-        return getpass.getuser() in [ "travis", "runner" ];
-
-    def tearDown(self):
         pass
 
 
@@ -33,8 +28,7 @@ class TestUpload(unittest.TestCase):
         scan2Wiki=Scan2Wiki(self.debug)
         for testFile in listdir(self.testdata):
             uploadEntry=UploadEntry(self.testdata,testFile)
-            scan2Wiki.uploadFile("test2", uploadEntry)
-    
+            scan2Wiki.uploadFile("test2", uploadEntry)    
         pass
 
 

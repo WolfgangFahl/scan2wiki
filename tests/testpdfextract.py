@@ -6,20 +6,16 @@ Created on 21.03.2021
 import unittest
 from scan.uploadentry import UploadEntry
 from os import path,listdir
-
+from tests.basetest import BaseTest
         
-class TestPDFExtract(unittest.TestCase):
+class TestPDFExtract(BaseTest):
     '''
     test PDF text extraction
     '''
 
     def setUp(self):
+        BaseTest.setUp(self)
         self.testdata = "%s/data" % path.abspath(path.dirname(__file__))
-        self.debug=True
-        pass
-
-
-    def tearDown(self):
         pass
 
 
