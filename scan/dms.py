@@ -89,4 +89,8 @@ class ArchiveManager(EntityManager):
         primaryKey='url'
         super().__init__(name, entityName, entityPluralName, listName, clazz, tableName, primaryKey, config, handleInvalidListTypes, filterInvalidListTypes, debug)
    
-
+    @staticmethod
+    def getInstance():
+        am=ArchiveManager(mode='json')
+        am.fromCache()
+        return am

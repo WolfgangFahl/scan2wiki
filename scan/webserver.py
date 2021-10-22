@@ -16,6 +16,7 @@ from pathlib import Path
 from datetime import datetime
 from scan.uploadentry import UploadEntry
 from wikibot.wikiuser import WikiUser
+from scan.dms import ArchiveManager, Archive
 import sys
 import os
 
@@ -53,6 +54,10 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/scandir')
         def showScanDirectory():
             return self.watchDir()
+        
+        @self.app.route('/archives')
+        def showArchives():
+            return self.showArchives()
         
         @self.app.route('/delete/<path:path>')
         def delete(path=None):
@@ -122,7 +127,7 @@ class Scan2WikiServer(AppWrap):
             # https://stackoverflow.com/questions/57073384/how-to-add-flask-autoindex-in-an-html-page
             # return files_index.render_autoindex(path,template="scans.html")
             dictList,lodKeys,tableHeaders=self.getScanFiles()
-            return render_template('scans.html',title="Scans",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+            return render_template('datatable.html',title="Scans",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         else:
             return send_from_directory(self.scandir,path)
 
@@ -165,11 +170,45 @@ class Scan2WikiServer(AppWrap):
         set up the menu for this application
         '''
         menu=Menu()
+        menu.addItem(MenuItem("/archives","Archives"))
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
         menu.addItem(MenuItem('http://wiki.bitplan.com/index.php/scan2wiki',"Docs")),
         menu.addItem(MenuItem('https://github.com/WolfgangFahl/scan2wiki','github'))
         return menu
+    
+    def linkColumn(self,name,record,formatWith=None,formatTitleWith=None):
+        '''
+        replace the column with the given name with a link
+        '''
+        if name in record:
+            value=record[name]
+            if value is None:
+                record[name]=''
+            else:
+                if formatWith is None:
+                    lurl=value
+                else:
+                    lurl=formatWith % value
+                if formatTitleWith is None:
+                    title=value
+                else:
+                    title=formatTitleWith % value
+                record[name]=Link(lurl,title)
+                
+    def showArchives(self):
+        '''
+        show the list of archives
+        '''
+        am=ArchiveManager.getInstance()
+        records=am.archives
+        archive=records[0]
+        lodKeys=archive.getJsonTypeSamples()[0].keys()
+        tableHeaders=lodKeys            
+        dictList=[vars(d).copy() for d in records]
+        for row in dictList:
+            self.linkColumn('url',row, formatWith="%s")
+        return render_template('datatable.html',title="Archives",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         
     @staticmethod
     def startServer(sysargs,dorun=True):

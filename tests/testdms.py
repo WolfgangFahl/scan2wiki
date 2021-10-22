@@ -13,13 +13,33 @@ class TestDMS(BaseTest):
     '''
 
     def testArchive(self):
+        '''
+        test the Archive concept
+        '''
         am=ArchiveManager(mode='json')
         for archiveRecord in Archive.getSamples():
             archive=Archive()
             archive.fromDict(archiveRecord)
             am.getList().append(archive)
         jsonStr=am.toJSON(limitToSampleFields=True)
-        print(jsonStr)
+        expected='''{
+    "archives": [
+        {
+            "name": "media",
+            "server": "media.bitplan.com",
+            "url": "http://media.bitplan.com",
+            "wikiid": "media"
+        }
+    ]
+}'''
+        if self.debug:
+            print(jsonStr)
+        self.assertEqual(expected,jsonStr)    
+        if self.isInPublicCI():
+            am.store()
+        am2=ArchiveManager.getInstance()
+        archives=am2.archives
+        self.assertTrue(len(archives)>0)
         pass
 
 
