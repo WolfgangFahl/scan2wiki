@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime
 from scan.uploadentry import UploadEntry
 from wikibot.wikiuser import WikiUser
-from scan.dms import ArchiveManager, Archive
+from scan.dms import ArchiveManager, Archive, FolderManager
 import sys
 import os
 
@@ -58,6 +58,10 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/archives')
         def showArchives():
             return self.showArchives()
+        
+        @self.app.route('/folders')
+        def showFolders():
+            return self.showFolders()
         
         @self.app.route('/delete/<path:path>')
         def delete(path=None):
@@ -171,6 +175,7 @@ class Scan2WikiServer(AppWrap):
         '''
         menu=Menu()
         menu.addItem(MenuItem("/archives","Archives"))
+        menu.addItem(MenuItem("/folders","Folders"))
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
         menu.addItem(MenuItem('http://wiki.bitplan.com/index.php/scan2wiki',"Docs")),
@@ -201,14 +206,29 @@ class Scan2WikiServer(AppWrap):
         show the list of archives
         '''
         am=ArchiveManager.getInstance()
-        records=am.archives
-        archive=records[0]
-        lodKeys=archive.getJsonTypeSamples()[0].keys()
+        return self.showEntityManager(am)
+        
+    def showFolders(self):
+        '''
+        show the list of foldes
+        '''
+        fm=FolderManager.getInstance()
+        return self.showEntityManager(fm)
+        
+    def showEntityManager(self,em):
+        '''
+        show the given entity manager
+        '''
+        records=em.getList()
+        firstRecord=records[0]
+        lodKeys=firstRecord.getJsonTypeSamples()[0].keys()
         tableHeaders=lodKeys            
         dictList=[vars(d).copy() for d in records]
         for row in dictList:
             self.linkColumn('url',row, formatWith="%s")
-        return render_template('datatable.html',title="Archives",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        title=em.entityPluralName
+        return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        
         
     @staticmethod
     def startServer(sysargs,dorun=True):
@@ -286,8 +306,11 @@ class UploadForm(FlaskForm):
         return u
 
 def main():
+    '''
+    main - command line entry point
+    '''
     sysargs=sys.argv[1:]
-    server=Scan2WikiServer.startServer(sysargs)
+    _server=Scan2WikiServer.startServer(sysargs)
         
 if __name__ == '__main__':
     sys.exit(main()) 

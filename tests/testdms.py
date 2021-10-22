@@ -63,23 +63,34 @@ class TestDMS(BaseTest):
         expected["wiki"]=0
         fm=FolderManager(mode="json")
         if not self.inPublicCI():
-            archive=Archive()
-            archive.name="bitplan-scan"
-            archive.server="capri.bitplan.com"
-            archive.url="http://capri.bitplan.com/bitplan/scan/"
-            archives.append(archive)
-            expected["bitplan-scan"]=10
+            amb=ArchiveManager.getInstance(mode='json')
+            for archive in amb.archives:
+                if not hasattr(archive,"wikiid"):
+                    archives.append(archive)
+            expected["bitplan-scan"]=320
+            expected["fahl-scan"]=190
+        self.debug=True
+        folders=[]
         for archive in archives:
-            folders=archive.getFolders()
-            folderCount=len(folders)
+            msg=f"getting folders for {archive.name}"
+            if self.debug:
+                print(msg)
+            afolders=(archive.getFolders())
+            folderCount=len(afolders)
             msg=f"found {folderCount} folders in {archive.name}"
-            self.debug=True
+            folders.extend(afolders)
             if self.debug:
                 print(msg)
             self.assertTrue(folderCount>=expected[archive.name])
         if not self.inPublicCI():
-            fm.folders=folders
-            fm.store()
+            fms=FolderManager(mode='sql')
+            fms.folders=folders
+            fms.store()
+            foldersByName,_dup=fms.getLookup("path")
+            folder=foldersByName["/bitplan/scan/2019"]
+            if self.debug:
+                print (folder.toJSON())
+            
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
