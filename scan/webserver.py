@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime
 from scan.uploadentry import UploadEntry
 from wikibot.wikiuser import WikiUser
-from scan.dms import ArchiveManager, Archive, FolderManager
+from scan.dms import ArchiveManager, FolderManager, DocumentManager
 import sys
 import os
 
@@ -62,6 +62,10 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/folders')
         def showFolders():
             return self.showFolders()
+        
+        @self.app.route('/documents')
+        def showDocuments():
+            return self.showDocuments()
         
         @self.app.route('/delete/<path:path>')
         def delete(path=None):
@@ -176,6 +180,7 @@ class Scan2WikiServer(AppWrap):
         menu=Menu()
         menu.addItem(MenuItem("/archives","Archives"))
         menu.addItem(MenuItem("/folders","Folders"))
+        menu.addItem(MenuItem("/documents","Documents"))
         menu.addItem(MenuItem("/scandir","Scan-Directory"))
         menu.addItem(MenuItem("/files","Scans"))
         menu.addItem(MenuItem('http://wiki.bitplan.com/index.php/scan2wiki',"Docs")),
@@ -210,10 +215,17 @@ class Scan2WikiServer(AppWrap):
         
     def showFolders(self):
         '''
-        show the list of foldes
+        show the list of folders
         '''
         fm=FolderManager.getInstance()
         return self.showEntityManager(fm)
+    
+    def showDocuments(self):
+        '''
+        show the list of documents
+        '''
+        dm=DocumentManager.getInstance()
+        return self.showEntityManager(dm)
         
     def showEntityManager(self,em):
         '''

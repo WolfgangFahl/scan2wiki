@@ -5,7 +5,7 @@ Created on 22.10.2021
 '''
 import unittest
 from tests.basetest import BaseTest
-from scan.dms import Archive,ArchiveManager, Folder, FolderManager
+from scan.dms import Archive,ArchiveManager,FolderManager,DocumentManager
 
 class TestDMS(BaseTest):
     '''
@@ -61,7 +61,6 @@ class TestDMS(BaseTest):
         archives=[archivesByUrl["http://wiki.bitplan.com"]]
         expected={}
         expected["wiki"]=0
-        fm=FolderManager(mode="json")
         if not self.inPublicCI():
             amb=ArchiveManager.getInstance(mode='json')
             for archive in amb.archives:
@@ -75,10 +74,10 @@ class TestDMS(BaseTest):
             msg=f"getting folders for {archive.name}"
             if self.debug:
                 print(msg)
-            afolders=(archive.getFolders())
-            folderCount=len(afolders)
+            afoldersByPath,documentList=(archive.getFoldersAndDocuments())
+            folderCount=len(afoldersByPath)
             msg=f"found {folderCount} folders in {archive.name}"
-            folders.extend(afolders)
+            folders.extend(afoldersByPath.values())
             if self.debug:
                 print(msg)
             self.assertTrue(folderCount>=expected[archive.name])
@@ -86,10 +85,15 @@ class TestDMS(BaseTest):
             fms=FolderManager(mode='sql')
             fms.folders=folders
             fms.store()
+            
             foldersByName,_dup=fms.getLookup("path")
             folder=foldersByName["/bitplan/scan/2019"]
             if self.debug:
                 print (folder.toJSON())
+                
+            dms=DocumentManager(mode='sql')
+            dms.documents=documentList
+            dms.store()
             
 
 if __name__ == "__main__":

@@ -50,6 +50,19 @@ class DMSStorage:
             config.cacheFile=f"{cachedir}/dms.db"
         return config
     
+    @staticmethod
+    def getTimeStr(fullpath:str):
+        '''
+        get the last modification time
+        
+        Args:
+            fullpath(str): the path to get the time string for
+        '''
+        timestamp=os.path.getmtime(fullpath)
+        ftime=datetime.fromtimestamp(timestamp)
+        ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
+        return ftimestr
+    
 class Document(JSONAble):
     '''
     a document consist of one or more files in the filesystem
@@ -100,6 +113,74 @@ class Folder(JSONAble):
     "path": "/bitplan/scan/2019"
 }]
         return samplesLOD
+    
+    @classmethod
+    def getPrefix(cls):
+        '''
+        get the path prefix for this platform (if any)
+        
+        Return:
+            str: the prefix e.g. /Volumes on Darwin
+        '''
+        if sys.platform == "darwin":
+                prefix=f"/Volumes"
+        else:
+            prefix=""
+        return prefix
+            
+    @classmethod
+    def getFullpath(cls,folderPath:str):
+        '''
+        get the full path as accessible on my platform
+        
+        Args:
+           folderPath(str): the path of the folder
+           
+        Return:
+            str: the full path of the folder
+        '''
+        fullPath=f"{Folder.getPrefix()}{folderPath}"
+        return fullPath
+    
+    @classmethod
+    def getRelpath(cls,folderPath:str)->str:
+        '''
+        get the relative path as accessible on my platform
+        
+        Args:
+           folderPath(str): the path of the folder
+           
+        Return:
+            str: the relative path of the folder
+        '''
+        prefix=Folder.getPrefix()
+        if prefix and folderPath.startswith(prefix):
+            relbase=folderPath.replace(prefix,"")
+        else:
+            relbase=folderPath
+        return relbase
+    
+    def getDocuments(self,files):
+        '''
+        get the documents for this folder based on the files from my listdir
+        '''
+        documentList=[]
+        for file in files:
+            try:
+                if file.endswith(".pdf"):
+                    doc=Document()
+                    doc.archiveName=self.archiveName
+                    doc.folderPath=self.path
+                    doc.name=file
+                    fullpath=f"{self.getFullpath(self.path)}/{file}"
+                    doc.url=f"http://{self.archive.server}{self.path}/{file}"
+                    doc.types="pdf"
+                    doc.size=os.path.getsize(fullpath)
+                    doc.lastModified=DMSStorage.getTimeStr(fullpath)
+                    documentList.append(doc)  
+            except Exception as e:
+                print(str(e))      
+        return documentList
     
 class DocumentManager(EntityManager):
     '''
@@ -179,48 +260,43 @@ class Archive(JSONAble):
         }]
         return samplesLOD
     
-    def getTimeStr(self,fullpath):
-        '''
-        get the last modification time
-        '''
-        timestamp=os.path.getmtime(fullpath)
-        ftime=datetime.fromtimestamp(timestamp)
-        ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
-        return ftimestr
-    
-    def getFolders(self)->list:
+    def getFoldersAndDocuments(self):
         '''
         get the folders of this archive
+        
+        Return:
+            the list of folders and files
         '''
-        folderList=[]
+        foldersByPath={} 
+        documentList=[]
         # this archive is pointing to a wiki
         if hasattr(self,"wikiid") and self.wikiid is not None:
             askQuery=""
         else:
             # this archive is pointing to folder
-            pattern=fr"http://{self.server}/"
+            pattern=fr"http://{self.server}"
             folderPath=re.sub(pattern,"",self.url)
-            if sys.platform == "darwin":
-                prefix=f"/Volumes/"
-            else:
-                prefix=""
-            basePath=f"{prefix}/{folderPath}"
-            for _root, dirs, _files in os.walk(basePath):
-                if prefix and _root.startswith(prefix):
-                    relbase=_root.replace(prefix,"")
+            basePath=Folder.getFullpath(folderPath)
+            for root, dirs, files in os.walk(basePath):
+                relbase=Folder.getRelpath(root)
                 for dirname in dirs: 
                     if not dirname.startswith("."):
                         folder=Folder()
-                        fullpath=os.path.join(_root,dirname)
+                        folder.archive=self
+                        fullpath=os.path.join(root,dirname)
                         folder.path=os.path.join(relbase, dirname)
                         folder.archiveName=self.name
                         folder.url=f"http://{self.server}{folder.path}"
                         folder.name=dirname
                         folder.fileCount=len(os.listdir(fullpath))
-                        folder.lastModified=self.getTimeStr(fullpath)
-                        folderList.append(folder)  
+                        folder.lastModified=DMSStorage.getTimeStr(fullpath)
+                        foldersByPath[folder.path]=folder 
+                if relbase in foldersByPath:
+                    folder=foldersByPath[relbase]
+                    folderDocuments=folder.getDocuments(files)
+                    documentList.extend(folderDocuments)
             pass
-        return folderList
+        return foldersByPath,documentList
     
         
 class ArchiveManager(EntityManager):
