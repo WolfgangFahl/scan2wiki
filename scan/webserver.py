@@ -90,26 +90,39 @@ class Scan2WikiServer(AppWrap):
         '''
         scanFiles=[]
         for path in os.listdir(self.scandir):
-            fullpath=self.getFullPath(path)
-            ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
-            ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
-            size=os.path.getsize(fullpath)
-            fileLink=Link(self.basedUrl(url_for("files",path=path)),path)
-            scanFile={
-                'name': fileLink,
-                'lastModified': ftimestr,
-                'size': size,
-                'delete': Link(self.basedUrl(url_for('delete',path=path)),'❌'),
-                'upload': Link(self.basedUrl(url_for('upload',path=path)),'⇧')
-                
-            }
-            scanFiles.append(scanFile)
+            try: 
+                fullpath=self.getFullPath(path)
+                ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
+                ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
+                size=os.path.getsize(fullpath)
+                fileLink=Link(self.basedUrl(url_for("files",path=path)),path)
+                scanFile={
+                    'name': fileLink,
+                    'lastModified': ftimestr,
+                    'size': size,
+                    'delete': Link(self.basedUrl(url_for('delete',path=path)),'❌'),
+                    'upload': Link(self.basedUrl(url_for('upload',path=path)),'⇧')
+                    
+                }
+                scanFiles.append(scanFile)
+            except Exception as ex:
+                msg=f"error {str(ex)} for {path}"
+                print(msg)
         lodKeys=["name","lastModified","size","delete","upload"]    
         tableHeaders=lodKeys
         return scanFiles,lodKeys,tableHeaders
     
     def getFullPath(self,path):
-        path=secure_filename(path)
+        '''
+        get the full path for the given path
+        
+        Args:
+            path(str): the path
+        
+        Return:
+            str: the full path
+        '''
+        #path=secure_filename(path)
         fullpath=f"{self.scandir}/{path}"
         return fullpath
     
