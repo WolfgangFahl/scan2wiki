@@ -59,6 +59,10 @@ class Scan2WikiServer(AppWrap):
         def showScanDirectory():
             return self.watchDir()
         
+        @self.app.route('/archives/getFoldersAndFiles/<name>')
+        def getFoldersAndFiles(name:str):
+            return self.getFoldersAndFiles(name)
+        
         @self.app.route('/archives')
         def showArchives():
             return self.showArchives()
@@ -231,15 +235,25 @@ class Scan2WikiServer(AppWrap):
         '''
         show the list of archives
         '''
-        return self.showEntityManager(self.am,self.archiveRowHandler)
+        return self.showEntityManager(self.am,self.archiveRowHandler,self.archiveLodKeyHandler)
     
+    def archiveLodKeyHandler(self,lodkeys):
+        lodkeys.append("🔄")
+        
     def archiveRowHandler(self,row):
         '''
         handle a row in the showArchive table view
         '''
-        self.defaultRowHandler(row)
         name=row['name']
+        row['🔄']=Link(self.basedUrl(url_for("getFoldersAndFiles",name=name)),'🔄')
+        self.defaultRowHandler(row)
         row['name']=Link(self.basedUrl(url_for("showArchive",name=name)),name)
+    
+    def getFoldersAndFiles(self,name:str):
+        if name in self.archivesByName:
+            return f"getting folders and files for {name}"
+        else:
+            return f"Archive with  name {name} not found", 400
     
     def showArchive(self,name):
         '''
@@ -286,13 +300,15 @@ class Scan2WikiServer(AppWrap):
         tableHeaders=lodKeys
         return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         
-    def showEntityManager(self,em,rowHandler=None):
+    def showEntityManager(self,em,rowHandler=None,lodKeyHandler=None):
         '''
         show the given entity manager
         '''
         records=em.getList()
         firstRecord=records[0]
-        lodKeys=firstRecord.getJsonTypeSamples()[0].keys()
+        lodKeys=list(firstRecord.getJsonTypeSamples()[0].keys())
+        if lodKeyHandler is not None:
+            lodKeyHandler(lodKeys)
         tableHeaders=lodKeys            
         dictList=[vars(d).copy() for d in records]
         if rowHandler is None:
