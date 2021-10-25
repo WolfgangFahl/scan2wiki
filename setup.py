@@ -27,6 +27,7 @@ setup(
       'py-3rdparty-mediawiki',
       'pycryptodome',
       'mwclient',
+      'pyLodStorage',
     ],
     entry_points={
       'console_scripts': [

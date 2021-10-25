@@ -23,6 +23,8 @@ import os
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 from flask.helpers import send_from_directory
+from lodstorage.jsonable import JSONAble
+from lodstorage.lod import LOD
 werkzeug.cached_property = werkzeug.utils.cached_property
 from scan.scan2wiki import Scan2Wiki
 
@@ -40,6 +42,8 @@ class Scan2WikiServer(AppWrap):
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
         self.scandir=Scan2Wiki.getScanDir()
         self.wikiUsers=WikiUser.getWikiUsers()
+        self.am=ArchiveManager.getInstance()
+        self.archivesByName,_dup=self.am.getLookup("name")
 
         
         @self.app.route('/')
@@ -58,6 +62,10 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/archives')
         def showArchives():
             return self.showArchives()
+        
+        @self.app.route('/archive/<name>')
+        def showArchive(name:str):
+            return self.showArchive(name)
         
         @self.app.route('/folders')
         def showFolders():
@@ -223,8 +231,24 @@ class Scan2WikiServer(AppWrap):
         '''
         show the list of archives
         '''
-        am=ArchiveManager.getInstance()
-        return self.showEntityManager(am)
+        return self.showEntityManager(self.am,self.archiveRowHandler)
+    
+    def archiveRowHandler(self,row):
+        '''
+        handle a row in the showArchive table view
+        '''
+        self.defaultRowHandler(row)
+        name=row['name']
+        row['name']=Link(self.basedUrl(url_for("showArchive",name=name)),name)
+    
+    def showArchive(self,name):
+        '''
+        show the archive with the given name
+        '''
+        if name in self.archivesByName:
+            return self.showEntity(self.archivesByName[name])
+        else:
+            return f"Archive with  name {name} not found", 400
         
     def showFolders(self):
         '''
@@ -239,8 +263,30 @@ class Scan2WikiServer(AppWrap):
         '''
         dm=DocumentManager.getInstance()
         return self.showEntityManager(dm)
+    
+    def defaultRowHandler(self,row):
+        self.linkColumn('url',row, formatWith="%s")
         
-    def showEntityManager(self,em):
+    def showEntity(self,entity:JSONAble):
+        '''
+        show the given entity
+        '''
+        title=entity.__class__.__name__
+        samples=entity.getJsonTypeSamples()
+        sampleFields = LOD.getFields(samples)
+        dictList=[]
+        for key in sampleFields:
+            if hasattr(entity,key):
+                value=getattr(entity,key)
+            else:
+                value="-"
+            keyValue={"key": key, 'value':value}
+            dictList.append(keyValue)
+        lodKeys=["key","value"]
+        tableHeaders=lodKeys
+        return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        
+    def showEntityManager(self,em,rowHandler=None):
         '''
         show the given entity manager
         '''
@@ -249,8 +295,10 @@ class Scan2WikiServer(AppWrap):
         lodKeys=firstRecord.getJsonTypeSamples()[0].keys()
         tableHeaders=lodKeys            
         dictList=[vars(d).copy() for d in records]
+        if rowHandler is None:
+            rowHandler=self.defaultRowHandler
         for row in dictList:
-            self.linkColumn('url',row, formatWith="%s")
+            rowHandler(row)
         title=em.entityPluralName
         return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         
