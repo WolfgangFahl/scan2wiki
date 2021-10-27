@@ -13,7 +13,7 @@ from wtforms import  SelectField,  StringField, TextAreaField, SubmitField,  Fil
 from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from scan.uploadentry import UploadEntry
 from scan.profiler import Profiler
 from wikibot.wikiuser import WikiUser
@@ -264,9 +264,10 @@ class Scan2WikiServer(AppWrap):
         if name in self.archivesByName:
             archive=self.archivesByName[name]
             msg=f"getting folders and files for {name}"
-            pd=ProgressDisplayer(msg)
+            pd=ProgressDisplayer(self,msg)
             title="Archive - get Folders and Documents"
-            startMsg=pd.start(archive.getFoldersAndDocuments)
+            debug=True
+            startMsg=pd.start(ArchiveManager.addFilesAndFoldersForArchive,kwargs={"archive":archive, "store":True, "debug":debug})
             return render_template("progress.html",title=title,menu=self.getMenuList(),msg=startMsg)
         else:
             return f"Archive with  name {name} not found", 400
@@ -358,30 +359,34 @@ class ProgressDisplayer:
     display progress
     '''
     
-    def __init__(self,msg):
+    def __init__(self,webserver,msg):
         '''
         construct me
         Args:
+            webserver(AppWrap): the webserver to work for
             msg(str): the message to display
         '''
+        self.webserver=webserver
         self.msg=msg
         
-    def start(self,functionToCall):
+    def start(self,functionToCall,kwargs):
         '''
         start me with the given function to call
         
         Args:
-            functionCall(func): the function to be called with a progess display
+            functionCall(func): the function to be called with a progress display
         Return:
             str: the html response for the initial start
         '''
         self.profiler=Profiler(self.msg)
         startMsg=self.profiler.start()
         # Todo: call background job and start SSE
-        #self.functionToCall=functionToCall
+        now=datetime.now()
+        run_date=now+timedelta(seconds=1)
+        print(f"scheduling job {functionToCall.__name__} for {run_date.isoformat()}")
+        self.webserver.sseBluePrint.scheduler.add_job(functionToCall, 'date',run_date=run_date,kwargs=kwargs)   
         #elapsed,elapsedMessage=self.profiler.time()
         return startMsg
-        
     
 class WidgetWrapper(HiddenInput):
     '''

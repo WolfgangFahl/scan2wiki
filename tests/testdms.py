@@ -68,33 +68,14 @@ class TestDMS(BaseTest):
                     archives.append(archive)
             expected["bitplan-scan"]=320
             expected["fahl-scan"]=190
-        self.debug=True
-        folders=[]
         for archive in archives:
-            msg=f"getting folders for {archive.name}"
-            if self.debug:
-                print(msg)
-            afoldersByPath,documentList=(archive.getFoldersAndDocuments())
-            folderCount=len(afoldersByPath)
-            msg=f"found {folderCount} folders in {archive.name}"
-            folders.extend(afoldersByPath.values())
-            if self.debug:
-                print(msg)
-            self.assertTrue(folderCount>=expected[archive.name])
-        if not self.inPublicCI():
-            fms=FolderManager(mode='sql')
-            fms.folders=folders
-            fms.store()
-            
-            foldersByName,_dup=fms.getLookup("path")
-            folder=foldersByName["/bitplan/scan/2019"]
-            if self.debug:
-                print (folder.toJSON())
-                
-            dms=DocumentManager(mode='sql')
-            dms.documents=documentList
-            dms.store()
-            
+            am.addFilesAndFoldersForArchive(archive,store=self.inPublicCI())
+            #if not self.inPublicCI():
+            #    self.assertTrue(folderCount>=expected[archive.name])
+            #foldersByName,_dup=fms.getLookup("path")
+            #folder=foldersByName["/bitplan/scan/2019"]
+            #if self.debug:
+            #        print (folder.toJSON())
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
