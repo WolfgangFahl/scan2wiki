@@ -4,37 +4,9 @@ Created on 2021-10-22
 @author: wf
 '''
 from unittest import TestCase
-import time
 import getpass
 import warnings
-
-class Profiler:
-    '''
-    simple profiler
-    '''
-    def __init__(self,msg,profile=True):
-        '''
-        construct me with the given msg and profile active flag
-        
-        Args:
-            msg(str): the message to show if profiling is active
-            profile(bool): True if messages should be shown
-        '''
-        self.msg=msg
-        self.profile=profile
-        self.starttime=time.time()
-        if profile:
-            print(f"Starting {msg} ...")
-        warnings.simplefilter("ignore", ResourceWarning)
-    
-    def time(self,extraMsg=""):
-        '''
-        time the action and print if profile is active
-        '''
-        elapsed=time.time()-self.starttime
-        if self.profile:
-            print(f"{self.msg}{extraMsg} took {elapsed:5.3f} s")
-        return elapsed
+from scan.profiler import Profiler
 
 class BaseTest(TestCase):
     '''
@@ -50,9 +22,10 @@ class BaseTest(TestCase):
         msg=(f"test {self._testMethodName} ... with debug={self.debug}")
         # make sure there is an EventCorpus.db to speed up tests
         self.profiler=Profiler(msg=msg,profile=profile)
+        warnings.simplefilter("ignore", ResourceWarning)
         
     def tearDown(self):
-        self.profiler.time()
+        _elapsed,_elapsedMessage=self.profiler.time()
         pass
         
     @staticmethod    

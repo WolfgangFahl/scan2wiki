@@ -1,0 +1,6 @@
+{% extends 'bitplan/base.html' %}
+{% block content %}
+{% import 'sse/sse.html' as sse %}
+{{ sse.loadSSEScripts() }}
+{{ msg }}
+{% endblock %}

@@ -15,10 +15,12 @@ from flask_wtf import FlaskForm
 from pathlib import Path
 from datetime import datetime
 from scan.uploadentry import UploadEntry
+from scan.profiler import Profiler
 from wikibot.wikiuser import WikiUser
 from scan.dms import ArchiveManager, FolderManager, DocumentManager
 import sys
 import os
+from fb4.sse_bp import SSE_BluePrint
 
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
@@ -40,6 +42,9 @@ class Scan2WikiServer(AppWrap):
         scriptdir = os.path.dirname(os.path.abspath(__file__))
         template_folder=scriptdir + '/../templates'
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
+        # https://flask.palletsprojects.com/en/2.0.x/config/#EXPLAIN_TEMPLATE_LOADING
+        self.app.config['EXPLAIN_TEMPLATE_LOADING']=True
+        self.sseBluePrint=SSE_BluePrint(self.app,'sse')
         self.scandir=Scan2Wiki.getScanDir()
         self.wikiUsers=WikiUser.getWikiUsers()
         self.am=ArchiveManager.getInstance()
@@ -250,8 +255,19 @@ class Scan2WikiServer(AppWrap):
         row['name']=Link(self.basedUrl(url_for("showArchive",name=name)),name)
     
     def getFoldersAndFiles(self,name:str):
+        '''
+        get folders and files for the archive with the given name
+        
+        Args:
+            name(str): the name of the archive to get the folders and files for
+        '''
         if name in self.archivesByName:
-            return f"getting folders and files for {name}"
+            archive=self.archivesByName[name]
+            msg=f"getting folders and files for {name}"
+            pd=ProgressDisplayer(msg)
+            title="Archive - get Folders and Documents"
+            startMsg=pd.start(archive.getFoldersAndDocuments)
+            return render_template("progress.html",title=title,menu=self.getMenuList(),msg=startMsg)
         else:
             return f"Archive with  name {name} not found", 400
     
@@ -336,6 +352,36 @@ class WatchForm(FlaskForm):
     home = str(Path.home())
     scandirField = FileField('Scandir',[validators.DataRequired()],render_kw={'placeholder': f'{home}'})
     submit = SubmitField()
+    
+class ProgressDisplayer:
+    '''
+    display progress
+    '''
+    
+    def __init__(self,msg):
+        '''
+        construct me
+        Args:
+            msg(str): the message to display
+        '''
+        self.msg=msg
+        
+    def start(self,functionToCall):
+        '''
+        start me with the given function to call
+        
+        Args:
+            functionCall(func): the function to be called with a progess display
+        Return:
+            str: the html response for the initial start
+        '''
+        self.profiler=Profiler(self.msg)
+        startMsg=self.profiler.start()
+        # Todo: call background job and start SSE
+        #self.functionToCall=functionToCall
+        #elapsed,elapsedMessage=self.profiler.time()
+        return startMsg
+        
     
 class WidgetWrapper(HiddenInput):
     '''
