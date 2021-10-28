@@ -17,16 +17,18 @@ from datetime import datetime, timedelta
 from scan.uploadentry import UploadEntry
 from scan.profiler import Profiler
 from wikibot.wikiuser import WikiUser
-from scan.dms import ArchiveManager, FolderManager, DocumentManager
+from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager
 import sys
 import os
 from fb4.sse_bp import SSE_BluePrint
+
 
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 from flask.helpers import send_from_directory
 from lodstorage.jsonable import JSONAble
 from lodstorage.lod import LOD
+from lodstorage.storageconfig import StoreMode
 werkzeug.cached_property = werkzeug.utils.cached_property
 from scan.scan2wiki import Scan2Wiki
 
@@ -47,7 +49,9 @@ class Scan2WikiServer(AppWrap):
         self.sseBluePrint=SSE_BluePrint(self.app,'sse')
         self.scandir=Scan2Wiki.getScanDir()
         self.wikiUsers=WikiUser.getWikiUsers()
+        self.sqlDB=DMSStorage.getSqlDB()
         self.am=ArchiveManager.getInstance()
+        self.fm=FolderManager.getInstance()
         self.archivesByName,_dup=self.am.getLookup("name")
 
         
@@ -67,7 +71,11 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/archives/getFoldersAndFiles/<name>')
         def getFoldersAndFiles(name:str):
             return self.getFoldersAndFiles(name)
-        
+         
+        @self.app.route('/archives/refresh')
+        def refreshArchives():
+            return self.refreshArchives()
+         
         @self.app.route('/archives')
         def showArchives():
             return self.showArchives()
@@ -236,6 +244,26 @@ class Scan2WikiServer(AppWrap):
                     title=formatTitleWith % value
                 record[name]=Link(lurl,title)
                 
+    def refreshArchives(self):
+        '''
+        refesh my archives
+        '''
+        if self.am.config.mode == StoreMode.JSON:
+            am=ArchiveManager(mode='sql')
+            am.archives=self.am.archives
+            self.am=am
+            
+        for archive in self.am.archives:
+            query="SELECT COUNT(*) AS folderCount FROM folder WHERE archiveName=(?)"
+            params=(archive.name,)
+            folderCountRecords=self.sqlDB.query(query,params)
+            if len(folderCountRecords)==1:
+                folderCountRecord=folderCountRecords[0]
+                folderCount=folderCountRecord['folderCount']
+                archive.folderCount=folderCount
+        self.am.store()
+        return self.showArchives()
+    
     def showArchives(self):
         '''
         show the list of archives
@@ -285,8 +313,7 @@ class Scan2WikiServer(AppWrap):
         '''
         show the list of folders
         '''
-        fm=FolderManager.getInstance()
-        return self.showEntityManager(fm)
+        return self.showEntityManager(self.fm)
     
     def showDocuments(self):
         '''

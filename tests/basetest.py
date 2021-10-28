@@ -22,6 +22,7 @@ class BaseTest(TestCase):
         msg=(f"test {self._testMethodName} ... with debug={self.debug}")
         # make sure there is an EventCorpus.db to speed up tests
         self.profiler=Profiler(msg=msg,profile=profile)
+        self.profiler.start()
         warnings.simplefilter("ignore", ResourceWarning)
         
     def tearDown(self):

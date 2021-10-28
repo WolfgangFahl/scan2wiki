@@ -8,6 +8,7 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 '''
 from lodstorage.jsonable import JSONAble
+from lodstorage.sql import SQLDB
 from lodstorage.entity import EntityManager
 from lodstorage.storageconfig import StorageConfig
 from datetime import datetime
@@ -66,6 +67,16 @@ class DMSStorage:
         if mode=='sql':
             config.cacheFile=f"{cachedir}/dms.db"
         return config
+    
+    @staticmethod
+    def getSqlDB():
+        '''
+        get the SQlite database connection
+        '''
+        config=DMSStorage.getStorageConfig(mode="sql")
+        # https://stackoverflow.com/a/48234567/1497139
+        sqlDB=SQLDB(config.cacheFile,check_same_thread=False)
+        return sqlDB
     
     @staticmethod
     def getTimeStr(fullpath:str):
@@ -269,11 +280,15 @@ class Archive(JSONAble):
             "name": "wiki",
             "url": "http://wiki.bitplan.com",
             "wikiid": "wiki",
+            "folderCount": 0,
+            "documentCount": 0,
         },{
             "server": "media.bitplan.com",
             "name": "media",
             "url": "http://media.bitplan.com",
             "wikiid": "media",
+            "folderCount": 9,
+            "documentCount": 551
         }]
         return samplesLOD
     
@@ -406,12 +421,13 @@ class ArchiveManager(EntityManager):
         if debug:
                 print(msg)
         if store:
-            fms=FolderManager(mode='sql')
-            fms.folders=folders
-            fms.store()
-                
-            dms=DocumentManager(mode='sql')
-            dms.documents=documentList
-            dms.store()
+            if len(folders)>0:
+                fms=FolderManager(mode='sql')
+                fms.folders=folders
+                fms.store()
+            if len(documentList)>0:
+                dms=DocumentManager(mode='sql')
+                dms.documents=documentList
+                dms.store()
 
 

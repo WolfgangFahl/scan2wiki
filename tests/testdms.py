@@ -69,7 +69,9 @@ class TestDMS(BaseTest):
             expected["bitplan-scan"]=320
             expected["fahl-scan"]=190
         for archive in archives:
-            am.addFilesAndFoldersForArchive(archive,store=self.inPublicCI())
+            store=self.inPublicCI()
+            store=True
+            am.addFilesAndFoldersForArchive(archive,store=store)
             #if not self.inPublicCI():
             #    self.assertTrue(folderCount>=expected[archive.name])
             #foldersByName,_dup=fms.getLookup("path")
