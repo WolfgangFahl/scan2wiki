@@ -4,6 +4,7 @@
 	<comment></comment>
 	<projects>
 		<project>pyFlaskBootstrap4</project>
+		<project>pyLoDStorage</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

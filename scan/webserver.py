@@ -52,8 +52,8 @@ class Scan2WikiServer(AppWrap):
         self.sqlDB=DMSStorage.getSqlDB()
         self.am=ArchiveManager.getInstance()
         self.fm=FolderManager.getInstance()
+        self.dm=DocumentManager.getInstance()
         self.archivesByName,_dup=self.am.getLookup("name")
-
         
         @self.app.route('/')
         def homeroute():
@@ -244,6 +244,26 @@ class Scan2WikiServer(AppWrap):
                     title=formatTitleWith % value
                 record[name]=Link(lurl,title)
                 
+    def getCount(self,tableName,foreignKeyName,foreignKeyValue):
+        '''
+        get the count of items in the given table with the given name,value combination for the foreign key
+        
+        Args:
+            tableName(str): name of the table to query
+            foreignKeyName(str): the name of the foreign key
+            foreignKeyValue(object): the value of the foreign key
+        Return:
+            int: the count
+        '''
+        query=f"SELECT COUNT(*) AS count FROM {tableName} WHERE {foreignKeyName}=(?)"
+        count=None
+        params=(foreignKeyValue,)
+        countRecords=self.sqlDB.query(query,params)
+        if len(countRecords)==1:
+            countRecord=countRecords[0]
+            count=countRecord['count']
+        return count
+        
     def refreshArchives(self):
         '''
         refesh my archives
@@ -254,12 +274,8 @@ class Scan2WikiServer(AppWrap):
             self.am=am
             
         for archive in self.am.archives:
-            query="SELECT COUNT(*) AS folderCount FROM folder WHERE archiveName=(?)"
-            params=(archive.name,)
-            folderCountRecords=self.sqlDB.query(query,params)
-            if len(folderCountRecords)==1:
-                folderCountRecord=folderCountRecords[0]
-                folderCount=folderCountRecord['folderCount']
+            folderCount=self.getCount("folder", "archiveName", archive.name)
+            if folderCount is not None:
                 archive.folderCount=folderCount
         self.am.store()
         return self.showArchives()

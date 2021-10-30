@@ -7,10 +7,10 @@ see http://diagrams.bitplan.com/render/png/0xe1f1d160.png
 see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 '''
+from lodstorage.storageconfig import StorageConfig, StoreMode
 from lodstorage.jsonable import JSONAble
 from lodstorage.sql import SQLDB
-from lodstorage.entity import EntityManager
-from lodstorage.storageconfig import StorageConfig
+from lodstorage.entity import EntityManager 
 from datetime import datetime
 from collections import Counter
 import re
@@ -90,6 +90,15 @@ class DMSStorage:
         ftime=datetime.fromtimestamp(timestamp)
         ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
         return ftimestr
+    
+    @staticmethod
+    def fromCache(em:EntityManager):
+        if em.isCached():
+            em.fromCache()
+        else:
+            if em.config.mode is StoreMode.SQL:
+                sqlDB=DMSStorage.getSqlDB()
+                em.initSQLDB(sqlDB)
     
 class Document(JSONAble):
     '''
@@ -233,7 +242,7 @@ class DocumentManager(EntityManager):
     @staticmethod
     def getInstance(mode='sql'):
         dm=DocumentManager(mode=mode)
-        dm.fromCache()
+        DMSStorage.fromCache(dm)
         return dm
     
 class FolderManager(EntityManager):
@@ -259,7 +268,7 @@ class FolderManager(EntityManager):
     @staticmethod
     def getInstance(mode='sql'):
         fm=FolderManager(mode=mode)
-        fm.fromCache()
+        DMSStorage.fromCache(fm)
         return fm
     
 class Archive(JSONAble):
@@ -395,7 +404,7 @@ class ArchiveManager(EntityManager):
     @staticmethod
     def getInstance(mode='json'):
         am=ArchiveManager(mode=mode)
-        am.fromCache()
+        DMSStorage.fromCache(am)
         return am
     
     @staticmethod
@@ -424,10 +433,10 @@ class ArchiveManager(EntityManager):
             if len(folders)>0:
                 fms=FolderManager(mode='sql')
                 fms.folders=folders
-                fms.store()
+                fms.store(append=True)
             if len(documentList)>0:
                 dms=DocumentManager(mode='sql')
                 dms.documents=documentList
-                dms.store()
+                dms.store(append=True)
 
 
