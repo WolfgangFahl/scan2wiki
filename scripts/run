@@ -38,11 +38,13 @@ error() {
 # show the usage
 #
 usage() {
-  echo "usage: $0 [-s] [-c] [-h]"
+  echo "usage: $0 [-s] [-c] [-h] [--host host] [--port port]"
   echo "  -h: show this usage"
   echo "  -s: start as server"
   echo "  -k: kill server if running"
   echo "  -c: start client"
+  echo "  --host host - the host to serve from"
+  echo "  --port port - the port to server from"
 }
 export PYTHONPATH=""
 
@@ -97,6 +99,8 @@ killifrunning() {
 # start the scan2wiki  server
 #
 startServer() {
+  local l_host="$1"
+  local l_port="$2"
   local l_logdir=/var/log/scan2wiki
   local l_logfile=scan2wiki.log
   color_msg $blue "starting server only"
@@ -108,12 +112,13 @@ startServer() {
   sudo chown $USER $l_logdir
   sudo chgrp $(id -gn) $l_logdir
   export PYTHONPATH="."
-  nohup python3 $pyapp $l_users > $l_logdir/$l_logfile 2>&1 &
+  nohup python3 $pyapp --host $l_host --port $l_port > $l_logdir/$l_logfile 2>&1 &
   color_msg $green "log is at $l_logdir/$l_logfile"
 }
 
 pyapp=scan/webserver.py
 port=8334
+host=localhost
 
 # commandline option
 while [  "$1" != ""  ]
@@ -124,8 +129,24 @@ do
     -h|--help)
       usage
       exit 0;;
+    --host)
+      if [ $# -lt 1 ]
+      then
+        usage
+      fi
+      host=$1
+      shift
+      ;;
+    --port)
+      if [ $# -lt 1 ]
+      then
+        usage
+      fi
+      port=$1
+      shift
+      ;;
     -s)
-      startServer
+      startServer $host $port
       ;;
     -k)
       killifrunning $pyapp
