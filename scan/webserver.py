@@ -22,7 +22,6 @@ import sys
 import os
 from fb4.sse_bp import SSE_BluePrint
 
-
 # https://stackoverflow.com/a/60157748/1497139
 import werkzeug
 from flask.helpers import send_from_directory
@@ -270,12 +269,7 @@ class Scan2WikiServer(AppWrap):
     def refreshArchives(self):
         '''
         refesh my archives
-        '''
-        if self.am.config.mode == StoreMode.JSON:
-            am=ArchiveManager(mode='sql')
-            am.archives=self.am.archives
-            self.am=am
-            
+        ''' 
         for archive in self.am.archives:
             folderCount=self.getCount("folder", "archiveName", archive.name)
             if folderCount is not None:

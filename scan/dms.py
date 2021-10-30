@@ -79,6 +79,18 @@ class DMSStorage:
         return sqlDB
     
     @staticmethod
+    def getDatetime(fullpath:str):
+        '''
+        get the last modification time
+        
+        Args:
+            fullpath(str): the path to get the datetime for
+        '''
+        timestamp=os.path.getmtime(fullpath)
+        ftime=datetime.fromtimestamp(timestamp)
+        return ftime
+    
+    @staticmethod
     def getTimeStr(fullpath:str):
         '''
         get the last modification time
@@ -86,8 +98,7 @@ class DMSStorage:
         Args:
             fullpath(str): the path to get the time string for
         '''
-        timestamp=os.path.getmtime(fullpath)
-        ftime=datetime.fromtimestamp(timestamp)
+        ftime=DMSStorage.getDatetime(fullpath)
         ftimestr=ftime.strftime("%Y-%m-%d %H:%M:%S")
         return ftimestr
     
@@ -121,9 +132,9 @@ class Document(JSONAble):
     "archiveName": "bitplan-scan",
     "folderPath": "",
     "url":"http://capri.bitplan.com/bitplan/scan/2019/",
-    "created": "2021-10-22 17:06:16",
+    "created": datetime(2019, 2, 27, 10, 7, 56),
     "size": 15,
-    "lastModified": "2021-10-22 17:06:16",
+    "lastModified": datetime(2019, 2, 27, 10, 7, 56),
     "name": "2019",
     "types": "pdf"
 }]
@@ -145,7 +156,8 @@ class Folder(JSONAble):
     "archiveName": "bitplan-scan",
     "url":"http://capri.bitplan.com/bitplan/scan/2019/",
     "fileCount": 15,
-    "lastModified": "2021-10-22 17:06:16",
+    "lastModified": datetime(2019, 2, 27, 10, 7, 56),
+    "created": datetime(2019, 2, 27, 10, 7, 56),
     "name": "2019",
     "path": "/bitplan/scan/2019"
 }]
@@ -213,7 +225,8 @@ class Folder(JSONAble):
                     doc.url=f"http://{self.archive.server}{self.path}/{file}"
                     doc.types="pdf"
                     doc.size=os.path.getsize(fullpath)
-                    doc.lastModified=DMSStorage.getTimeStr(fullpath)
+                    doc.lastModified=DMSStorage.getDatetime(fullpath)
+                    doc.created=doc.lastModified
                     documentList.append(doc)  
             except Exception as e:
                 print(str(e))      
@@ -324,13 +337,18 @@ class Archive(JSONAble):
                 askQuery="""{{#ask: [[Category:OCRDocument]]  
 | mainlabel=page
 | ?Category
+| ?Modification date=lastModified
+| ?Creation date=created
 |limit=1000
 %s
 }}""" % option
                 print(askQuery)
                 result=smw.query(askQuery)
+                baseUrl=f"{smw.site.scheme}://{smw.site.host}{smw.site.path}index.php"
                 if option=="":
                     folderCounter=Counter()
+                    folderCreated={}
+                    folderLastModified={}
                     for record in result.values():
                         page=record['page']
                         if "Kategorie" in record:
@@ -343,14 +361,29 @@ class Archive(JSONAble):
                         doc.archiveName=self.name
                         doc.folderPath=categories[0]
                         doc.folderPath=doc.folderPath.replace(f"{catname}:","")
+                        doc.lastModified=record["lastModified"]
+                        doc.created=record["created"]
                         folderCounter[doc.folderPath]+=1
+                        if doc.folderPath in folderCreated:
+                            folderCreated[doc.folderPath]=min(doc.created,folderCreated[doc.folderPath])
+                        else:
+                            folderCreated[doc.folderPath]=doc.created
+                        if doc.folderPath in folderLastModified:
+                            folderLastModified[doc.folderPath]=max(doc.lastModified,folderCreated[doc.folderPath])
+                        else:
+                            folderLastModified[doc.folderPath]=doc.lastModified
+                            
                         doc.name=page
-                        doc.url=f"{smw.site.scheme}://{smw.site.host}{smw.site.path}index.php/{self.normalizePageTitle(page)}"
+                        doc.url=f"{baseUrl}/{self.normalizePageTitle(page)}"
                         documentList.append(doc)
+                    # collect folders    
                     for folderName,count in folderCounter.most_common():
                         folder=Folder()
                         folder.archiveName=self.name
                         folder.name=folderName
+                        folder.lastModified=folderLastModified[folderName]
+                        folder.created=folderCreated[folderName]
+                        folder.url=f"{baseUrl}/Category:{folderName}"
                         folder.fileCount=count
                         foldersByPath[folderName]=folder
                         pass
@@ -371,7 +404,8 @@ class Archive(JSONAble):
                         folder.url=f"http://{self.server}{folder.path}"
                         folder.name=dirname
                         folder.fileCount=len(os.listdir(fullpath))
-                        folder.lastModified=DMSStorage.getTimeStr(fullpath)
+                        folder.lastModified=DMSStorage.getDatetime(fullpath)
+                        folder.created=folder.lastModified
                         foldersByPath[folder.path]=folder 
                 if relbase in foldersByPath:
                     folder=foldersByPath[relbase]
@@ -402,9 +436,19 @@ class ArchiveManager(EntityManager):
         super().__init__(name, entityName, entityPluralName, listName, clazz, tableName, primaryKey, config, handleInvalidListTypes, filterInvalidListTypes, debug)
    
     @staticmethod
-    def getInstance(mode='json'):
-        am=ArchiveManager(mode=mode)
-        DMSStorage.fromCache(am)
+    def getInstance(mode=None):
+        if mode is None:
+            ams=ArchiveManager(mode='sql')
+            if not ams.isCached():
+                amj=ArchiveManager(mode='json')
+                amj.fromCache()
+                ams.archives=amj.archives
+                ams.store()
+            am=ams
+            DMSStorage.fromCache(ams)
+            am=ams
+        else:
+            am=ArchiveManager(mode)
         return am
     
     @staticmethod
