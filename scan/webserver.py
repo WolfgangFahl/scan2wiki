@@ -31,18 +31,21 @@ from lodstorage.lod import LOD
 from lodstorage.storageconfig import StoreMode
 werkzeug.cached_property = werkzeug.utils.cached_property
 from scan.scan2wiki import Scan2Wiki
+import socket
 
 class Scan2WikiServer(AppWrap):
     ''' 
     Web app for scanning documents to a wiki
     '''
     
-    def __init__(self, host='0.0.0.0', port=8334, debug=False):
+    def __init__(self, host=None, port=8334, debug=False):
         '''
         constructor
         '''
         scriptdir = os.path.dirname(os.path.abspath(__file__))
         template_folder=scriptdir + '/../templates'
+        if host is None:
+            host=socket.gethostname()
         super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
         # https://flask.palletsprojects.com/en/2.0.x/config/#EXPLAIN_TEMPLATE_LOADING
         self.app.config['EXPLAIN_TEMPLATE_LOADING']=True
