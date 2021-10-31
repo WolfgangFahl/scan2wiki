@@ -5,7 +5,7 @@ Created on 2021-03-26
 '''
 
 from fb4.app import AppWrap
-from flask import render_template, url_for
+from flask import flash,render_template, url_for
 from fb4.widgets import  Menu, MenuItem, Link,Widget
 from wtforms import validators
 from wtforms.widgets import HiddenInput
@@ -89,6 +89,14 @@ class Scan2WikiServer(AppWrap):
         @self.app.route('/folders')
         def showFolders():
             return self.showFolders()
+        
+        @self.app.route('/folder/<archiveName>/<path:folderPath>/refresh')
+        def refreshFolder(archiveName:str=None,folderPath=None):
+            return self.refreshFolder(archiveName,f"/{folderPath}")
+        
+        @self.app.route('/folder/<archiveName>/<path:folderPath>')
+        def showFolder(archiveName:str=None,folderPath=None):
+            return self.showFolder(archiveName,f"/{folderPath}")
         
         @self.app.route('/documents')
         def showDocuments():
@@ -218,6 +226,7 @@ class Scan2WikiServer(AppWrap):
         set up the menu for this application
         '''
         menu=Menu()
+        menu.addItem(MenuItem("/","Home"))
         menu.addItem(MenuItem("/archives","Archives"))
         menu.addItem(MenuItem("/folders","Folders"))
         menu.addItem(MenuItem("/documents","Documents"))
@@ -322,11 +331,72 @@ class Scan2WikiServer(AppWrap):
         else:
             return f"Archive with  name {name} not found", 400
         
+        
+    def showFolder(self,archiveName:str=None,folderPath:str=None,refresh:bool=False):
+        '''
+        show the given folder optionally refreshing the content before doing so
+        
+        Args:
+            archiveName(str): the archive for the folder
+            folderPath(str): the path of the folder
+            refresh(bool): True if the content should be refreshed
+        Return:
+            str: htmlReponse via flask template
+        '''
+        msg=f"show Folder documents for archive: {archiveName} folder: {folderPath} refresh: {refresh}"
+        flash(message=msg)
+        title=msg
+        sqlDB=self.sqlDB
+        sqlQuery="SELECT * FROM document WHERE archiveName=(?) AND folderPath=(?)"
+        params=(archiveName,folderPath,)
+        dictList=sqlDB.query(sqlQuery, params)
+        lodKeys=["url"]
+        if len(dictList)>0:
+            lodKeys=dictList[0].keys()
+        for row in dictList:
+            self.defaultRowHandler(row)
+        tableHeaders=lodKeys
+        return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        
+    def refreshFolder(self,archiveName:str=None,folderPath:str=None):
+        '''
+        refresh the given folder
+        
+        Args:
+            archiveName(str): the archive for the folder
+            folderPath(str): the path of the folder
+        Return:
+            str: htmlReponse via flask template
+        '''
+        return self.showFolder(archiveName,folderPath,refresh=True)
+        
+    def folderLodKeyHandler(self,lodkeys):
+        lodkeys.append("🔄")
+        
+        
+    def logException(self,ex):
+        msg=f"{ex}"
+        print(msg,file=sys.stderr,flush=True)
+        
+    def folderRowHandler(self,row):
+        '''
+        handle a row in the showArchive table view
+        '''
+        name=row['name']
+        folderPath=row['path']
+        archiveName=row['archiveName']
+        try:
+            row['🔄']=Link(self.basedUrl(url_for("refreshFolder",archiveName=archiveName,folderPath=folderPath)),'🔄')
+            self.defaultRowHandler(row)
+            row['name']=Link(self.basedUrl(url_for("showFolder",archiveName=archiveName,folderPath=folderPath)),name)
+        except Exception as ex:
+            self.logException(ex)
+        
     def showFolders(self):
         '''
         show the list of folders
         '''
-        return self.showEntityManager(self.fm)
+        return self.showEntityManager(self.fm,self.folderRowHandler,self.folderLodKeyHandler)
     
     def showDocuments(self):
         '''
