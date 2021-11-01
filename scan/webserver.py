@@ -5,7 +5,7 @@ Created on 2021-03-26
 '''
 
 from fb4.app import AppWrap
-from flask import flash,render_template, url_for
+from flask import abort,render_template, url_for
 from fb4.widgets import  Menu, MenuItem, Link,Widget
 from wtforms import validators
 from wtforms.widgets import HiddenInput
@@ -198,6 +198,10 @@ class Scan2WikiServer(AppWrap):
         title='upload'
         template="upload.html"
         uploadForm=UploadForm()
+        wikiChoices=[]
+        for archive in self.archivesByName.values():
+            wikiChoices.append((archive.name,archive.server)) 
+        uploadForm.wikiUser.choices=wikiChoices
         if uploadForm.validate_on_submit():
             uploadEntry=uploadForm.toUploadEntry(self.scandir)
             uploadEntry.uploadFile(uploadForm.wikiUser.data)
@@ -284,6 +288,7 @@ class Scan2WikiServer(AppWrap):
             if folderCount is not None:
                 archive.folderCount=folderCount
         self.am.store()
+        self.fm=FolderManager.getInstance()
         return self.showArchives()
     
     def showArchives(self):
@@ -317,7 +322,7 @@ class Scan2WikiServer(AppWrap):
             pd=ProgressDisplayer(self,msg)
             title="Archive - get Folders and Documents"
             debug=True
-            startMsg=pd.start(ArchiveManager.addFilesAndFoldersForArchive,kwargs={"archive":archive, "store":True, "debug":debug})
+            startMsg=pd.start(ArchiveManager.addFilesAndFoldersForArchive,kwargs={"archive":archive, "store":True, "debug":debug})   
             return render_template("progress.html",title=title,menu=self.getMenuList(),msg=startMsg)
         else:
             return f"Archive with  name {name} not found", 400
@@ -343,13 +348,14 @@ class Scan2WikiServer(AppWrap):
         Return:
             str: htmlReponse via flask template
         '''
-        msg=f"show Folder documents for archive: {archiveName} folder: {folderPath} refresh: {refresh}"
-        flash(message=msg)
+        msg=f"documents for {archiveName}/{folderPath} refresh: {refresh}"
+        if not archiveName in self.archivesByName:
+            abort(400,f"invalid archive {archiveName}")
+        archive=self.archivesByName[archiveName]
+        if refresh:
+            self.fm.refreshFolder(archive,folderPath)
         title=msg
-        sqlDB=self.sqlDB
-        sqlQuery="SELECT * FROM document WHERE archiveName=(?) AND folderPath=(?)"
-        params=(archiveName,folderPath,)
-        dictList=sqlDB.query(sqlQuery, params)
+        dictList=self.fm.getDocumentRecords(archiveName,folderPath)
         lodKeys=["url"]
         if len(dictList)>0:
             lodKeys=dictList[0].keys()
@@ -432,8 +438,11 @@ class Scan2WikiServer(AppWrap):
         show the given entity manager
         '''
         records=em.getList()
-        firstRecord=records[0]
-        lodKeys=list(firstRecord.getJsonTypeSamples()[0].keys())
+        if len(records)>0:
+            firstRecord=records[0]
+            lodKeys=list(firstRecord.getJsonTypeSamples()[0].keys())
+        else:
+            lodKeys=["url"]
         if lodKeyHandler is not None:
             lodKeyHandler(lodKeys)
         tableHeaders=lodKeys            
@@ -517,7 +526,7 @@ class UploadForm(FlaskForm):
     pageTitle=StringField('pagetitle',[validators.DataRequired()])
     pageLink=StringField('pagelink',widget=WidgetWrapper())
     # https://stackoverflow.com/q/21217475/1497139
-    wikiUser=SelectField('Wiki', choices=[('fahl', 'fahl.bitplan.com'),('media', 'media.bitplan.com'),('scan', 'scan.bitplan.com'), ('test', 'test.bitplan.com') ])
+    wikiUser=SelectField('Wiki')
     scannedFile=StringField('scannedFile')
     categories=StringField('categories')
     topic=StringField('topic')

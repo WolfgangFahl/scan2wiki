@@ -27,8 +27,9 @@ class TestUpload(BaseTest):
         if self.inPublicCI(): return
         scan2Wiki=Scan2Wiki(self.debug)
         for testFile in listdir(self.testdata):
-            uploadEntry=UploadEntry(self.testdata,testFile)
-            scan2Wiki.uploadFile("test2", uploadEntry)    
+            if testFile.endswith(".pdf"):
+                uploadEntry=UploadEntry(self.testdata,testFile)
+                scan2Wiki.uploadFile("test2", uploadEntry)    
         pass
 
 

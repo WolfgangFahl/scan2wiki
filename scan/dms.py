@@ -18,7 +18,6 @@ import os
 import sys
 from wikibot.wikiclient import WikiClient
 from wikibot.smw import SMWClient
-
 class Wiki(object):
     
     @staticmethod
@@ -209,6 +208,39 @@ class Folder(JSONAble):
             relbase=folderPath
         return relbase
     
+    def logException(self,ex):
+        msg=f"{ex}"
+        print(msg,file=sys.stderr,flush=True)
+        
+        
+    def getFiles(self,extension=".pdf"):
+        '''
+        get all files with the given extension
+        
+        Args:
+            extension(str): the extension to search for
+            
+        Return:
+            list: the files with the given extension
+        '''
+        files=[]
+        fullPath=Folder.getFullpath(self.path)
+        for file in os.listdir(fullPath):
+            if file.endswith(".pdf"):
+                files.append(file)
+        return files
+            
+    def getFileDocuments(self):
+        '''
+        get all documents for the OCRDocument files in this folder
+        
+        Return:
+            list: the list of documents
+        '''
+        files=self.getFiles()
+        documents=self.getDocuments(files)
+        return documents
+    
     def getDocuments(self,files):
         '''
         get the documents for this folder based on the files from my listdir
@@ -229,8 +261,18 @@ class Folder(JSONAble):
                     doc.created=doc.lastModified
                     documentList.append(doc)  
             except Exception as e:
-                print(str(e))      
+                self.logException(e)      
         return documentList
+    
+    def refreshDocuments(self):
+        '''
+        refresh the documents in this folder
+        '''
+        doclist=self.getFileDocuments()
+        for doc in doclist:
+            doc.ocrText=doc.getOcrText()
+            pass
+        pass
     
 class DocumentManager(EntityManager):
     '''
@@ -283,6 +325,51 @@ class FolderManager(EntityManager):
         fm=FolderManager(mode=mode)
         DMSStorage.fromCache(fm)
         return fm
+    
+    def getDocumentRecords(self,archiveName,folderPath):
+        '''
+        get the document records
+        '''
+        sqlDB=SQLDB(self.getCacheFile())
+        sqlQuery="SELECT * FROM document WHERE archiveName=(?) AND folderPath=(?)"
+        params=(archiveName,folderPath,)
+        dictList=sqlDB.query(sqlQuery, params)
+        return dictList
+    
+    def getFolder(self,archive,folderPath:str):
+        '''
+        get the folder for the given archive and folderPath
+        
+        Args:
+            archive: the  archive
+            folderPath: the path of the folder
+        '''
+        sqlDB=SQLDB(self.getCacheFile())
+        sqlQuery="SELECT * FROM folder WHERE archiveName=(?) AND path=(?)"
+        archiveName=archive.name
+        params=(archiveName,folderPath,)
+        records=sqlDB.query(sqlQuery, params)
+        folder=None
+        if len(records)>1:
+            msg=f"{len(records)} folders found for {archiveName}:{folderPath} - there should be only one"
+            raise Exception(msg)
+        elif len(records)==1:
+            folder=Folder()
+            folder.fromDict(records[0])
+        folder.archive=archive
+        return folder
+    
+    def refreshFolder(self,archive,folderPath):
+        '''
+        for the given archive and folderPath
+        
+        Args:
+            archive: the name of the archive
+            folderPath: the path of the folder 
+        '''
+        folder=self.getFolder(archive, folderPath)
+        folder.refreshDocuments()
+        pass
     
 class Archive(JSONAble):
     '''
@@ -359,19 +446,25 @@ class Archive(JSONAble):
                             categories=record['Category']
                         doc=Document()
                         doc.archiveName=self.name
-                        doc.folderPath=categories[0]
-                        doc.folderPath=doc.folderPath.replace(f"{catname}:","")
+                        if isinstance(categories,list):
+                            firstCategory=categories[0]
+                        else:
+                            firstCategory=categories
+                        doc.folderPath=firstCategory.replace(f"{catname}:","")
+                        #print(f"{firstCategory}->{doc.folderPath}")
                         doc.lastModified=record["lastModified"]
                         doc.created=record["created"]
                         folderCounter[doc.folderPath]+=1
-                        if doc.folderPath in folderCreated:
-                            folderCreated[doc.folderPath]=min(doc.created,folderCreated[doc.folderPath])
-                        else:
-                            folderCreated[doc.folderPath]=doc.created
-                        if doc.folderPath in folderLastModified:
-                            folderLastModified[doc.folderPath]=max(doc.lastModified,folderCreated[doc.folderPath])
-                        else:
-                            folderLastModified[doc.folderPath]=doc.lastModified
+                        if doc.created:
+                            if doc.folderPath in folderCreated:  
+                                folderCreated[doc.folderPath]=min(doc.created,folderCreated[doc.folderPath])
+                            else:
+                                folderCreated[doc.folderPath]=doc.created
+                        if doc.lastModified:
+                            if doc.folderPath in folderLastModified:
+                                folderLastModified[doc.folderPath]=max(doc.lastModified,folderCreated[doc.folderPath])
+                            else:
+                                folderLastModified[doc.folderPath]=doc.lastModified
                             
                         doc.name=page
                         doc.url=f"{baseUrl}/{self.normalizePageTitle(page)}"
@@ -381,6 +474,7 @@ class Archive(JSONAble):
                         folder=Folder()
                         folder.archiveName=self.name
                         folder.name=folderName
+                        folder.path=folderName
                         folder.lastModified=folderLastModified[folderName]
                         folder.created=folderCreated[folderName]
                         folder.url=f"{baseUrl}/Category:{folderName}"
@@ -388,12 +482,13 @@ class Archive(JSONAble):
                         foldersByPath[folderName]=folder
                         pass
         else:
-            # this archive is pointing to folder
+            # this archive is pointing to a folder
             pattern=fr"http://{self.server}"
             folderPath=re.sub(pattern,"",self.url)
             basePath=Folder.getFullpath(folderPath)
             for root, dirs, files in os.walk(basePath):
                 relbase=Folder.getRelpath(root)
+                # loop over all directories
                 for dirname in dirs: 
                     if not dirname.startswith("."):
                         folder=Folder()
@@ -403,14 +498,15 @@ class Archive(JSONAble):
                         folder.archiveName=self.name
                         folder.url=f"http://{self.server}{folder.path}"
                         folder.name=dirname
-                        folder.fileCount=len(os.listdir(fullpath))
+                        # files in folder ...
+                        pdfFiles=folder.getFiles()
+                        folder.fileCount=len(pdfFiles)
                         folder.lastModified=DMSStorage.getDatetime(fullpath)
                         folder.created=folder.lastModified
-                        foldersByPath[folder.path]=folder 
-                if relbase in foldersByPath:
-                    folder=foldersByPath[relbase]
-                    folderDocuments=folder.getDocuments(files)
-                    documentList.extend(folderDocuments)
+                        folderDocuments=folder.getDocuments(pdfFiles)
+                        # add the results
+                        documentList.extend(folderDocuments)
+                        foldersByPath[folder.path]=folder
             pass
         return foldersByPath,documentList
     

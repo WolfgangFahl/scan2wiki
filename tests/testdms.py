@@ -70,8 +70,9 @@ class TestDMS(BaseTest):
             expected["fahl-scan"]=190
         for archive in archives:
             store=self.inPublicCI()
-            store=True
+            #store=True
             am.addFilesAndFoldersForArchive(archive,store=store)
+            
             #if not self.inPublicCI():
             #    self.assertTrue(folderCount>=expected[archive.name])
             #foldersByName,_dup=fms.getLookup("path")

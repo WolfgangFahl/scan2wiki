@@ -26,9 +26,10 @@ class TestPDFExtract(BaseTest):
         expected={
             "2016_01_17_09_32_49.jpg": None,
             "2015_11_14_17_53_37.pdf":["Requirements","Engineering","Prüfung"],
-            "2021_10_20_15_51_33.pdf":["ALDI SÜD"]
+            "2021/2021_10_20_15_51_33.pdf":["ALDI SÜD"],
+            "2021/2021_11_01_13_03_50.pdf":["Universal Declaration of Human Rights"]
         }
-        for testFile in listdir(self.testdata):
+        for testFile in expected.keys():
             uploadEntry=UploadEntry(self.testdata,testFile)
             pdfText=uploadEntry.ocrText
             if testFile in expected:
