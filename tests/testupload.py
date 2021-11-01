@@ -4,11 +4,10 @@ Created on 21.03.2021
 @author: wf
 '''
 import unittest
-import getpass
 from os import path,listdir
-from scan.scan2wiki import Scan2Wiki
-from scan.uploadentry import UploadEntry
+from scan.dms import Document
 from tests.basetest import BaseTest
+from wikibot.wikiuser import WikiUser
 
 class TestUpload(BaseTest):
     '''
@@ -19,17 +18,19 @@ class TestUpload(BaseTest):
     def setUp(self):
         BaseTest.setUp(self)
         self.testdata = "%s/data" % path.abspath(path.dirname(__file__))
+        
         pass
 
 
     def testUpload(self):
         # don't test this in public CIs e.g. travis, github
         if self.inPublicCI(): return
-        scan2Wiki=Scan2Wiki(self.debug)
+        wikiId="test2"
         for testFile in listdir(self.testdata):
             if testFile.endswith(".pdf"):
-                uploadEntry=UploadEntry(self.testdata,testFile)
-                scan2Wiki.uploadFile("test2", uploadEntry)    
+                uploadEntry=Document()
+                uploadEntry.fromFile(self.testdata,testFile)
+                uploadEntry.uploadFile(wikiId)
         pass
 
 

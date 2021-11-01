@@ -14,10 +14,9 @@ from werkzeug.utils import secure_filename
 from flask_wtf import FlaskForm
 from pathlib import Path
 from datetime import datetime, timedelta
-from scan.uploadentry import UploadEntry
 from scan.profiler import Profiler
 from wikibot.wikiuser import WikiUser
-from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager
+from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
 import sys
 import os
 from fb4.sse_bp import SSE_BluePrint
@@ -29,7 +28,6 @@ from lodstorage.jsonable import JSONAble
 from lodstorage.lod import LOD
 from lodstorage.storageconfig import StoreMode
 werkzeug.cached_property = werkzeug.utils.cached_property
-from scan.scan2wiki import Scan2Wiki
 import socket
 
 class Scan2WikiServer(AppWrap):
@@ -49,7 +47,7 @@ class Scan2WikiServer(AppWrap):
         # https://flask.palletsprojects.com/en/2.0.x/config/#EXPLAIN_TEMPLATE_LOADING
         self.app.config['EXPLAIN_TEMPLATE_LOADING']=True
         self.sseBluePrint=SSE_BluePrint(self.app,'sse')
-        self.scandir=Scan2Wiki.getScanDir()
+        self.scandir=DMSStorage.getScanDir()
         self.wikiUsers=WikiUser.getWikiUsers()
         self.sqlDB=DMSStorage.getSqlDB()
         self.am=ArchiveManager.getInstance()
@@ -203,11 +201,11 @@ class Scan2WikiServer(AppWrap):
             wikiChoices.append((archive.name,archive.server)) 
         uploadForm.wikiUser.choices=wikiChoices
         if uploadForm.validate_on_submit():
-            uploadEntry=uploadForm.toUploadEntry(self.scandir)
+            uploadEntry=uploadForm.toDocument(self.scandir)
             uploadEntry.uploadFile(uploadForm.wikiUser.data)
         else:
-            uploadEntry=UploadEntry(self.scandir,path)
-            uploadForm.fromUploadEntry(uploadEntry)
+            uploadEntry=Document(self.scandir,path)
+            uploadForm.fromDocument(uploadEntry)
             pass
         uploadForm.update()
         html=render_template(template, title=title, menu=self.getMenuList(),uploadForm=uploadForm)
@@ -538,25 +536,26 @@ class UploadForm(FlaskForm):
         wikiLink=f"http://{self.wikiUser.data}.bitplan.com/index.php/{pageTitle}"
         self.pageLink.data=Link(wikiLink,pageTitle)
  
-    def fromUploadEntry(self,u:UploadEntry):
+    def fromDocument(self,u:Document):
         '''
-        fill my from from the given uploadEntry
+        fill my form from the given Document
         '''
         self.scannedFile.data=u.fileName
         self.wikiUser.data=u.wikiUser
         self.pageTitle.data=u.pageTitle
         self.topic.data=u.topic
         self.categories.data=u.categories
-        self.ocrText.data=u.getPDFText()
+        self.ocrText.data=u.getOcrText()
         
-    def toUploadEntry(self,scandir):
+    def toDocument(self,scandir):
         '''
-        convert me to an upload entry
+        convert me to an document
         
         Return:
             UploadEntry: the upload entry to use
         '''
-        u=UploadEntry(scandir,self.scannedFile.data)
+        u=Document()
+        u.fromFile(scandir,self.scannedFile.data)
         u.wikiUser=self.wikiUser.data
         u.pageTitle=self.pageTitle.data
         u.topic=self.topic.data

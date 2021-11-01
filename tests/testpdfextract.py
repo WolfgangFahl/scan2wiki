@@ -4,9 +4,9 @@ Created on 21.03.2021
 @author: wf
 '''
 import unittest
-from scan.uploadentry import UploadEntry
-from os import path,listdir
+from scan.dms import Document
 from tests.basetest import BaseTest
+import os
         
 class TestPDFExtract(BaseTest):
     '''
@@ -15,7 +15,7 @@ class TestPDFExtract(BaseTest):
 
     def setUp(self):
         BaseTest.setUp(self)
-        self.testdata = "%s/data" % path.abspath(path.dirname(__file__))
+        self.testdata = "%s/data" % os.path.abspath(os.path.dirname(__file__))
         pass
 
 
@@ -30,11 +30,12 @@ class TestPDFExtract(BaseTest):
             "2021/2021_11_01_13_03_50.pdf":["Universal Declaration of Human Rights"]
         }
         for testFile in expected.keys():
-            uploadEntry=UploadEntry(self.testdata,testFile)
-            pdfText=uploadEntry.ocrText
+            doc=Document()
+            doc.fromFile(self.testdata,testFile)
+            pdfText=doc.getOcrText()
             if testFile in expected:
                 if self.debug:
-                    print(str(uploadEntry))
+                    print(str(doc))
                     print(pdfText)
                 exContentList=expected[testFile]
                 if exContentList is None:

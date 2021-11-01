@@ -7,6 +7,10 @@ see http://diagrams.bitplan.com/render/png/0xe1f1d160.png
 see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 '''
+
+from scan.pdf import PDFMiner
+from pathlib import Path
+from wikibot.wikipush import WikiPush
 from lodstorage.storageconfig import StorageConfig, StoreMode
 from lodstorage.jsonable import JSONAble
 from lodstorage.sql import SQLDB
@@ -68,6 +72,19 @@ class DMSStorage:
         return config
     
     @staticmethod
+    def getScanDir():
+        '''
+         get the scan/watch directory to be used
+         
+         Returns:
+             str: the path to the scan directory
+        '''
+        home = str(Path.home())
+        scandir=f"{home}/Pictures/scans"
+        os.makedirs(scandir, exist_ok=True)
+        return scandir
+
+    @staticmethod
     def getSqlDB():
         '''
         get the SQlite database connection
@@ -122,8 +139,102 @@ class Document(JSONAble):
 
     def __init__(self):
         '''
-        Constructor
+        construct me
         '''
+        pass
+    
+    def fromFile(self,directory,path):
+        '''
+        Args:
+            directory(str): the directory
+            path(str): the path
+        '''
+        
+        fullpath=f"{directory}/{path}"
+        ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
+        self.timestampStr=ftime.strftime("%Y-%m-%d %H:%M:%S")
+        self.scannedFile=fullpath
+        self.fileName=Path(self.scannedFile).name
+        self.baseName=Path(self.scannedFile).stem
+        self.pageTitle=f"{self.baseName}"
+        
+        self.categories="2021"
+        self.topic="OCRDocument"
+        self.wikiUser="test"
+        pass        
+    
+    def __str__(self):
+        text="Upload:"
+        self.fields=['fileName','ocrText']
+        delim=""
+        for fieldname in self.fields:
+            text+="%s%s=%s" % (delim,fieldname,self.__dict__[fieldname])   
+            delim=","
+        return text  
+    
+    def getPDFText(self):
+        '''
+        get my PDF Text
+        '''
+        pdfText=None
+        if self.scannedFile.lower().endswith("pdf"):
+            pdfText=PDFMiner.getPDFText(self.scannedFile)
+        return pdfText
+    
+    def getOcrText(self):
+        '''
+        get the OCR 
+        '''
+        self.ocrText=self.getPDFText()
+        return self.ocrText 
+            
+    def uploadFile(self,wikiId):
+        '''
+        call back
+        '''
+        pageContent=self.getContent()
+        ignoreExists=True
+        wikipush=WikiPush(fromWikiId=None,toWikiId=wikiId,login=True)
+        description=f"scanned at {self.timestampStr}"  
+        msg=f"uploading {self.pageTitle} ({self.fileName}) to {wikiId} ... " 
+        files=[self.scannedFile]
+        wikipush.upload(files,force=ignoreExists)
+        pageToBeEdited=wikipush.toWiki.getPage(self.pageTitle)
+        if (not pageToBeEdited.exists) or ignoreExists:
+            pageToBeEdited.edit(pageContent,description)
+            wikipush.log(msg+"✅")
+            pass
+            
+    def getContent(self):
+        '''
+        get my content
+        
+        Return:
+            str: the content of the wikipage
+        '''
+        wikicats=""
+        delim=""
+        for category in self.categories.split(','):
+            wikicats+="%s[[Category:%s]]" % (delim,category)
+            delim="\n"
+        if self.fileName.endswith(".pdf"):
+            template="""= pdf pages =
+<pdf>%s</pdf>
+= text =
+<pre>%s</pre>
+= pdf =
+[[File:%s]]
+%s
+<headertabs/>
+""" 
+            pageContent=template % (self.fileName,self.ocrText,self.fileName,wikicats)
+        else:
+            template="""[[File:%s]]
+%s
+<headertabs/>"""
+            pageContent=template % (self.fileName,wikicats)
+    
+        return pageContent
         
     @classmethod
     def getSamples(cls):
@@ -270,7 +381,7 @@ class Folder(JSONAble):
         '''
         doclist=self.getFileDocuments()
         for doc in doclist:
-            doc.ocrText=doc.getOcrText()
+            doc.getOcrText()
             pass
         pass
     
