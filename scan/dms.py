@@ -588,7 +588,7 @@ class Archive(JSONAble):
         nPageTitle=pageTitle.replace(" ","_")
         return nPageTitle
     
-    def getFoldersAndDocuments(self):
+    def getFoldersAndDocuments(self,withOcr=False):
         '''
         get the folders of this archive
         
@@ -685,7 +685,7 @@ class Archive(JSONAble):
                         folder.fileCount=len(pdfFiles)
                         folder.lastModified=DMSStorage.getDatetime(fullpath)
                         folder.created=folder.lastModified
-                        folderDocuments=folder.getDocuments(pdfFiles)
+                        folderDocuments=folder.getDocuments(pdfFiles,withOcr=withOcr)
                         # add the results
                         documentList.extend(folderDocuments)
                         foldersByPath[folder.path]=folder
@@ -730,7 +730,7 @@ class ArchiveManager(EntityManager):
         return am
     
     @staticmethod
-    def addFilesAndFoldersForArchive(archive=None,store=False,debug=True):
+    def addFilesAndFoldersForArchive(archive=None,withOcr=False,store=False,debug=True):
         '''
         add Files and folder for the given Archive
         
@@ -745,7 +745,7 @@ class ArchiveManager(EntityManager):
         msg=f"getting folders for {archive.name}"
         if debug:
             print(msg)
-        afoldersByPath,documentList=(archive.getFoldersAndDocuments())
+        afoldersByPath,documentList=(archive.getFoldersAndDocuments(withOcr=withOcr))
         folderCount=len(afoldersByPath)
         msg=f"found {folderCount} folders in {archive.name}"
         folders.extend(afoldersByPath.values())

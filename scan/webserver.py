@@ -321,7 +321,7 @@ class Scan2WikiServer(AppWrap):
             pd=ProgressDisplayer(self,msg)
             title="Archive - get Folders and Documents"
             debug=True
-            startMsg=pd.start(ArchiveManager.addFilesAndFoldersForArchive,kwargs={"archive":archive, "store":True, "debug":debug})   
+            startMsg=pd.start(ArchiveManager.addFilesAndFoldersForArchive,kwargs={"archive":archive, "withOcr": True,"store":True, "debug":debug})   
             return render_template("progress.html",title=title,menu=self.getMenuList(),msg=startMsg)
         else:
             return f"Archive with  name {name} not found", 400
