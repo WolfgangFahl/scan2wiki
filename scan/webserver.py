@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from scan.profiler import Profiler
 from wikibot.wikiuser import WikiUser
 from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
+from scan.logger import Logger
 import sys
 import os
 from fb4.sse_bp import SSE_BluePrint
@@ -376,12 +377,7 @@ class Scan2WikiServer(AppWrap):
         
     def folderLodKeyHandler(self,lodkeys):
         lodkeys.append("🔄")
-        
-        
-    def logException(self,ex):
-        msg=f"{ex}"
-        print(msg,file=sys.stderr,flush=True)
-        
+              
     def folderRowHandler(self,row):
         '''
         handle a row in the showArchive table view
@@ -394,7 +390,7 @@ class Scan2WikiServer(AppWrap):
             self.defaultRowHandler(row)
             row['name']=Link(self.basedUrl(url_for("showFolder",archiveName=archiveName,folderPath=folderPath)),name)
         except Exception as ex:
-            self.logException(ex)
+            Logger.logException(ex)
         
     def showFolders(self):
         '''

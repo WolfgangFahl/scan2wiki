@@ -24,6 +24,7 @@ import sys
 from wikibot.wikiclient import WikiClient
 from wikibot.wikiuser import WikiUser
 from wikibot.smw import SMWClient
+from scan.logger import Logger
 
 class Wiki(object):
     '''
@@ -221,23 +222,28 @@ class Document(JSONAble):
         '''
         pass
     
-    def fromFile(self,directory,path):
+    def fromFile(self,folderPath,file,withOcr=False):
         '''
         Args:
-            directory(str): the directory
-            path(str): the path
+            folderPath(str): the directory
+            file(str): the file
+            withOcr(bool): if true get the OCRText
         '''
-        
-        fullpath=f"{directory}/{path}"
-        ftime=datetime.fromtimestamp(os.path.getmtime(fullpath))
-        self.timestampStr=ftime.strftime("%Y-%m-%d %H:%M:%S")
-        self.scannedFile=fullpath
-        self.fileName=Path(self.scannedFile).name
-        self.baseName=Path(self.scannedFile).stem
+        self.folderPath=folderPath
+        self.name=file
+        self.fullpath=f"{Folder.getFullpath(self.folderPath)}/{file}"
+        self.size=os.path.getsize(self.fullpath)
+        self.lastModified=DMSStorage.getDatetime(self.fullpath)
+        self.created=self.lastModified                 
+        self.timestampStr=DMSStorage.getTimeStr(self.fullpath)
+        self.fileName=Path(self.fullpath).name
+        self.baseName=Path(self.fullpath).stem
         self.pageTitle=f"{self.baseName}"
         
         self.categories="2021"
         self.topic="OCRDocument"
+        if withOcr:
+            self.getOcrText()
         pass        
     
     def __str__(self):
@@ -254,8 +260,8 @@ class Document(JSONAble):
         get my PDF Text
         '''
         pdfText=None
-        if self.scannedFile.lower().endswith("pdf"):
-            pdfText=PDFMiner.getPDFText(self.scannedFile)
+        if self.fullpath.lower().endswith(".pdf"):
+            pdfText=PDFMiner.getPDFText(self.fullpath)
         return pdfText
     
     def getOcrText(self):
@@ -274,7 +280,7 @@ class Document(JSONAble):
         wikipush=WikiPush(fromWikiId=None,toWikiId=wikiId,login=True)
         description=f"scanned at {self.timestampStr}"  
         msg=f"uploading {self.pageTitle} ({self.fileName}) to {wikiId} ... " 
-        files=[self.scannedFile]
+        files=[self.fullpath]
         wikipush.upload(files,force=ignoreExists)
         pageToBeEdited=wikipush.toWiki.getPage(self.pageTitle)
         if (not pageToBeEdited.exists) or ignoreExists:
@@ -350,8 +356,8 @@ class Folder(JSONAble):
             prefix=""
         return prefix
             
-    @classmethod
-    def getFullpath(cls,folderPath:str):
+    @staticmethod
+    def getFullpath(folderPath:str):
         '''
         get the full path as accessible on my platform
         
@@ -381,10 +387,6 @@ class Folder(JSONAble):
         else:
             relbase=folderPath
         return relbase
-    
-    def logException(self,ex):
-        msg=f"{ex}"
-        print(msg,file=sys.stderr,flush=True)
         
         
     def getFiles(self,extension=".pdf"):
@@ -415,29 +417,23 @@ class Folder(JSONAble):
         documents=self.getDocuments(files)
         return documents
     
-    def getDocuments(self,files,withOcr=True):
+    def getDocuments(self,files,withOcr=False):
         '''
         get the documents for this folder based on the files from my listdir
         '''
         documentList=[]
+        msg=f"getting {len(files)} documents for {self.path}"
+        Logger.log(msg)
         for file in files:
             try:
                 if file.endswith(".pdf"):
                     doc=Document()
                     doc.archiveName=self.archiveName
-                    doc.folderPath=self.path
-                    doc.name=file
-                    fullpath=f"{self.getFullpath(self.path)}/{file}"
                     doc.url=f"http://{self.archive.server}{self.path}/{file}"
-                    doc.types="pdf"
-                    doc.size=os.path.getsize(fullpath)
-                    doc.lastModified=DMSStorage.getDatetime(fullpath)
-                    doc.created=doc.lastModified
-                    if withOcr:
-                        doc.getOcrText()
+                    doc.fromFile(self.path,file,withOcr=withOcr)
                     documentList.append(doc)  
             except Exception as e:
-                self.logException(e)      
+                Logger.logException(e)      
         return documentList
     
     def refreshDocuments(self):
