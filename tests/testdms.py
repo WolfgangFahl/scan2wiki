@@ -38,15 +38,16 @@ class TestDMS(BaseTest):
         '''
         am=self.getSampleArchiveManager()
         jsonStr=am.toJSON(limitToSampleFields=True)
-        expected='''{
-            "name": "media",
-            "server": "media.bitplan.com",
-            "url": "http://media.bitplan.com",
-            "wikiid": "media"
-        }'''
-        if self.debug:
+        expectedNameValues=['''"name": "media"''',
+            '''"server": "media.bitplan.com"''',
+            '''"url": "http://media.bitplan.com"''',
+            '''"wikiid": "media"''',
+        ]
+        debug=self.debug
+        if debug:
             print(jsonStr)
-        self.assertTrue(expected in jsonStr)    
+        for expected in expectedNameValues:    
+            self.assertTrue(expected in jsonStr)    
         am2=ArchiveManager.getInstance()
         archives=am2.archives
         self.assertTrue(len(archives)>0)
