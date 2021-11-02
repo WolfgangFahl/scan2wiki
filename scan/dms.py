@@ -206,6 +206,14 @@ class Document(JSONAble):
         samplesLOD = [{
     "archiveName": "bitplan-scan",
     "folderPath": "",
+    # TODO: fullpath, filename, basename and timestampStr not needed
+    "fullpath": "",
+    "fileName": "",
+    "basename": "",
+    "timestampStr": "",
+    "pageTitle": "",
+    "categories": "",
+    "topic": "",
     "url":"http://capri.bitplan.com/bitplan/scan/2019/",
     "created": datetime(2019, 2, 27, 10, 7, 56),
     "size": 15,
@@ -489,7 +497,7 @@ class FolderManager(EntityManager):
         config=DMSStorage.getStorageConfig(mode=mode,debug=debug)
         handleInvalidListTypes=True
         filterInvalidListTypes=True
-        primaryKey='url'
+        primaryKey=None
         super().__init__(name, entityName, entityPluralName, listName, clazz, tableName, primaryKey, config, handleInvalidListTypes, filterInvalidListTypes, debug)
    
     @staticmethod
