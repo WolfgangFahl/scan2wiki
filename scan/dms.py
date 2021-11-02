@@ -17,24 +17,81 @@ from lodstorage.sql import SQLDB
 from lodstorage.entity import EntityManager 
 from datetime import datetime
 from collections import Counter
+import getpass
 import re
 import os
 import sys
 from wikibot.wikiclient import WikiClient
+from wikibot.wikiuser import WikiUser
 from wikibot.smw import SMWClient
+
 class Wiki(object):
-    
+    '''
+    Semantic Mediawiki access proxy
+    '''    
     @staticmethod
-    def getSMW(wikiId):
+    def getSMW(wikiId:str):
+        '''
+        get the semantic mediawiki client with the given wikiId
+        
+        Args:
+            wikiId: the wiki id of the client
+            
+        Return:
+            SMWClient: the SMWClient with the given id
+        '''
         wikiClient=Wiki.get(wikiId)
         smw=SMWClient(wikiClient.getSite())
         return smw    
     
     @staticmethod
-    def get(wikiId):
+    def get(wikiId:str):
+        '''
+        get the Wiki Client with the given wikiId
+        
+        Args:
+            wikiId: the wiki id of the client
+            
+        Return:
+            WikiClient: the WikiClient with the given id
+        '''
+        Wiki.checkIniFile(wikiId)
         wikiClient=WikiClient.ofWikiId(wikiId)
         wikiClient.login()
         return wikiClient
+     
+    @staticmethod
+    def inPublicCI():
+        '''
+        are we running in a public Continuous Integration Environment?
+        '''
+        return getpass.getuser() in ["travis", "runner"];
+
+    @staticmethod
+    def checkIniFile(wikiId:str,save=None):
+        '''
+        check the ini file for the given wikiId
+        
+        Args:
+            wikiId(str): the wiki id of the wiki to check
+            save(bool): True if a new ini file should be created e.g. for test purposes
+                        if not set save is True if we are running in a public continuous integration environment
+        '''
+        if save is None:
+            save=Wiki.inPublicCI()
+        iniFile = WikiUser.iniFilePath(wikiId)
+        if not os.path.isfile(iniFile):
+            wikiDict = None
+            if wikiId == "wiki":
+                wikiDict = {"wikiId": wikiId, "email": "noreply@nouser.com", "url": "https://wiki.bitplan.com",
+                            "scriptPath": "/", "version": "MediaWiki 1.35.1"}
+            if wikiDict is None:
+                raise Exception(f"wikiId {wikiId} is not configured in $HOME.mediawiki-japi")
+            else:
+                wikiUser = WikiUser.ofDict(wikiDict, lenient=True)
+                if save:
+                    wikiUser.save()
+            pass
 
 class DMSStorage:
     '''
@@ -120,6 +177,12 @@ class DMSStorage:
     
     @staticmethod
     def fromCache(em:EntityManager):
+        '''
+        initialize the given entity manager from it's cache
+        
+        Args:
+            em(EntityManager): the entity manager to initialize
+        '''
         if em.isCached():
             em.fromCache()
         else:
@@ -137,6 +200,21 @@ class Document(JSONAble):
     for single page Documents  the document is somewhat redundant to the Page concept
     '''
 
+    @classmethod
+    def getSamples(cls):
+        samplesLOD = [{
+    "archiveName": "bitplan-scan",
+    "folderPath": "",
+    "url":"http://capri.bitplan.com/bitplan/scan/2019/",
+    "created": datetime(2019, 2, 27, 10, 7, 56),
+    "size": 15,
+    "lastModified": datetime(2019, 2, 27, 10, 7, 56),
+    "name": "2019",
+    "types": "pdf",
+    "ocrText": ""
+}]
+        return samplesLOD
+    
     def __init__(self):
         '''
         construct me
@@ -160,7 +238,6 @@ class Document(JSONAble):
         
         self.categories="2021"
         self.topic="OCRDocument"
-        self.wikiUser="test"
         pass        
     
     def __str__(self):
@@ -235,20 +312,6 @@ class Document(JSONAble):
             pageContent=template % (self.fileName,wikicats)
     
         return pageContent
-        
-    @classmethod
-    def getSamples(cls):
-        samplesLOD = [{
-    "archiveName": "bitplan-scan",
-    "folderPath": "",
-    "url":"http://capri.bitplan.com/bitplan/scan/2019/",
-    "created": datetime(2019, 2, 27, 10, 7, 56),
-    "size": 15,
-    "lastModified": datetime(2019, 2, 27, 10, 7, 56),
-    "name": "2019",
-    "types": "pdf"
-}]
-        return samplesLOD
     
 class Folder(JSONAble):
     '''
