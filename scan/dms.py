@@ -636,7 +636,7 @@ class Archive(JSONAble):
                                 folderCreated[doc.folderPath]=doc.created
                         if doc.lastModified:
                             if doc.folderPath in folderLastModified:
-                                folderLastModified[doc.folderPath]=max(doc.lastModified,folderCreated[doc.folderPath])
+                                folderLastModified[doc.folderPath]=max(doc.lastModified,folderLastModified[doc.folderPath])
                             else:
                                 folderLastModified[doc.folderPath]=doc.lastModified
                             
@@ -649,8 +649,10 @@ class Archive(JSONAble):
                         folder.archiveName=self.name
                         folder.name=folderName
                         folder.path=folderName
-                        folder.lastModified=folderLastModified[folderName]
-                        folder.created=folderCreated[folderName]
+                        if folderName in folderLastModified:
+                            folder.lastModified=folderLastModified[folderName]
+                        if folderName in folderCreated:
+                            folder.created=folderCreated[folderName]
                         folder.url=f"{baseUrl}/Category:{folderName}"
                         folder.fileCount=count
                         foldersByPath[folderName]=folder
