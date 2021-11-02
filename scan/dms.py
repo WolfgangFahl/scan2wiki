@@ -400,7 +400,7 @@ class Folder(JSONAble):
         files=[]
         fullPath=Folder.getFullpath(self.path)
         for file in os.listdir(fullPath):
-            if file.endswith(".pdf"):
+            if file.endswith(extension) and not file.startswith("._"):
                 files.append(file)
         return files
             
@@ -415,7 +415,7 @@ class Folder(JSONAble):
         documents=self.getDocuments(files)
         return documents
     
-    def getDocuments(self,files):
+    def getDocuments(self,files,withOcr=True):
         '''
         get the documents for this folder based on the files from my listdir
         '''
@@ -433,6 +433,8 @@ class Folder(JSONAble):
                     doc.size=os.path.getsize(fullpath)
                     doc.lastModified=DMSStorage.getDatetime(fullpath)
                     doc.created=doc.lastModified
+                    if withOcr:
+                        doc.getOcrText()
                     documentList.append(doc)  
             except Exception as e:
                 self.logException(e)      
