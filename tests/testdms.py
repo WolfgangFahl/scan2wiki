@@ -72,7 +72,9 @@ class TestDMS(BaseTest):
         for archive in archives:
             store=self.inPublicCI()
             if store:
+                # prepare managers
                 FolderManager.getInstance()
+                DocumentManager.getInstance()
             #store=True
             am.addFilesAndFoldersForArchive(archive,store=store)
             
