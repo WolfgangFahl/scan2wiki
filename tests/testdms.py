@@ -71,6 +71,8 @@ class TestDMS(BaseTest):
             expected["fahl-scan"]=190
         for archive in archives:
             store=self.inPublicCI()
+            if store:
+                FolderManager.getInstance()
             #store=True
             am.addFilesAndFoldersForArchive(archive,store=store)
             
