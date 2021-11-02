@@ -7,13 +7,11 @@ import unittest
 from os import path,listdir
 from scan.dms import Document
 from tests.basetest import BaseTest
-from wikibot.wikiuser import WikiUser
 
 class TestUpload(BaseTest):
     '''
     test uploading to a mediawiki
     '''
-
 
     def setUp(self):
         BaseTest.setUp(self)
@@ -29,7 +27,7 @@ class TestUpload(BaseTest):
         for testFile in listdir(self.testdata):
             if testFile.endswith(".pdf"):
                 uploadEntry=Document()
-                uploadEntry.fromFile(self.testdata,testFile)
+                uploadEntry.fromFile(self.testdata,testFile,withOcr=True)
                 uploadEntry.uploadFile(wikiId)
         pass
 

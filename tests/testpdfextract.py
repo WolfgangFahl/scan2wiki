@@ -31,7 +31,7 @@ class TestPDFExtract(BaseTest):
         }
         for testFile in expected.keys():
             doc=Document()
-            doc.fromFile(self.testdata,testFile)
+            doc.fromFile(self.testdata,testFile,withOcr=True)
             pdfText=doc.getOcrText()
             if testFile in expected:
                 if self.debug:
