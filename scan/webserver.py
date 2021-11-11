@@ -205,8 +205,9 @@ class Scan2WikiServer(AppWrap):
             uploadEntry=uploadForm.toDocument(self.scandir)
             uploadEntry.uploadFile(uploadForm.wikiUser.data)
         else:
-            uploadEntry=Document(self.scandir,path)
-            uploadForm.fromDocument(uploadEntry)
+            doc=Document()
+            doc.fromFile(self.scandir,path,local=True,withOcr=True)
+            uploadForm.fromDocument(doc)
             pass
         uploadForm.update()
         html=render_template(template, title=title, menu=self.getMenuList(),uploadForm=uploadForm)
@@ -537,7 +538,6 @@ class UploadForm(FlaskForm):
         fill my form from the given Document
         '''
         self.scannedFile.data=u.fileName
-        self.wikiUser.data=u.wikiUser
         self.pageTitle.data=u.pageTitle
         self.topic.data=u.topic
         self.categories.data=u.categories
@@ -551,7 +551,7 @@ class UploadForm(FlaskForm):
             UploadEntry: the upload entry to use
         '''
         u=Document()
-        u.fromFile(scandir,self.scannedFile.data)
+        u.fromFile(scandir,self.scannedFile.data,local=True)
         u.wikiUser=self.wikiUser.data
         u.pageTitle=self.pageTitle.data
         u.topic=self.topic.data

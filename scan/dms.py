@@ -230,7 +230,7 @@ class Document(JSONAble):
         '''
         pass
     
-    def fromFile(self,folderPath,file,withOcr=False):
+    def fromFile(self,folderPath,file,local=False,withOcr=False):
         '''
         Args:
             folderPath(str): the directory
@@ -239,7 +239,7 @@ class Document(JSONAble):
         '''
         self.folderPath=folderPath
         self.name=file
-        self.fullpath=f"{Folder.getFullpath(self.folderPath)}/{file}"
+        self.fullpath=f"{Folder.getFullpath(self.folderPath,local)}/{file}"
         self.size=os.path.getsize(self.fullpath)
         self.lastModified=DMSStorage.getDatetime(self.fullpath)
         self.created=self.lastModified                 
@@ -365,17 +365,21 @@ class Folder(JSONAble):
         return prefix
             
     @staticmethod
-    def getFullpath(folderPath:str):
+    def getFullpath(folderPath:str,local:bool=False):
         '''
         get the full path as accessible on my platform
         
         Args:
            folderPath(str): the path of the folder
+           local(bool): True if the path is for a local folder
            
         Return:
             str: the full path of the folder
         '''
-        fullPath=f"{Folder.getPrefix()}{folderPath}"
+        if local:
+            fullPath=folderPath
+        else:
+            fullPath=f"{Folder.getPrefix()}{folderPath}"
         return fullPath
     
     @classmethod
