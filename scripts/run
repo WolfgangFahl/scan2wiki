@@ -117,7 +117,7 @@ startServer() {
 
 pyapp=scan/webserver.py
 port=8334
-host=localhost
+host=$(hostname)
 baseUrl="http://$host:$port"
 
 # commandline option
