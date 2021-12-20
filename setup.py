@@ -10,7 +10,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='scan2wiki',
-    version='0.0.10',
+    version='0.0.11',
 
     packages=['scan'],
     classifiers=[
