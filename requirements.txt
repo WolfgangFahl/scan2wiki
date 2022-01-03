@@ -1,6 +1,6 @@
 # Mediawiki and SMW API
 # https://pypi.org/project/py-3rdparty-mediawiki/
-py-3rdparty-mediawiki~=0.5.1
+py-3rdparty-mediawiki~=0.5.3
 # https://pypi.org/project/pylodstorage/
 pylodstorage~=0.0.85
 # https://github.com/claird/PyPDF4
@@ -12,7 +12,7 @@ pylodstorage~=0.0.85
 # https://pypi.org/project/pdfminer/
 pdfminer
 # web server with Flask and Bootstrap4
-pyFlaskBootstrap4>=0.2.24
+pyFlaskBootstrap4>=0.4.1
 # https://pypi.org/project/watchdog/
 watchdog
 # https://pypi.org/project/APScheduler/

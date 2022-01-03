@@ -6,7 +6,10 @@ Created on 2021-03-26
 
 from fb4.app import AppWrap
 from flask import abort,render_template, url_for
-from fb4.widgets import  Menu, MenuItem, Link,Widget
+from flask_login import current_user, login_required
+from fb4.sqldb import db
+from fb4.login_bp import LoginBluePrint
+from fb4.widgets import  Copyright,Menu, MenuItem, Link,Widget
 from wtforms import validators
 from wtforms.widgets import HiddenInput
 from wtforms import  SelectField,  StringField, TextAreaField, SubmitField,  FileField
@@ -48,6 +51,10 @@ class Scan2WikiServer(AppWrap):
         # https://flask.palletsprojects.com/en/2.0.x/config/#EXPLAIN_TEMPLATE_LOADING
         self.app.config['EXPLAIN_TEMPLATE_LOADING']=True
         self.sseBluePrint=SSE_BluePrint(self.app,'sse')
+        self.loginBluePrint=LoginBluePrint(self.app,'login',welcome="home")
+        # server specific configurations
+        link=Link("http://www.bitplan.com",title="BITPlan GmbH")
+        self.copyRight=Copyright(period="2020-2022",link=link)
         self.scandir=DMSStorage.getScanDir()
         self.wikiUsers=WikiUser.getWikiUsers()
         self.sqlDB=DMSStorage.getSqlDB()
@@ -109,14 +116,27 @@ class Scan2WikiServer(AppWrap):
         def upload(path=None):
             return self.upload(path)
         
+    def render_template(self,templateName:str,title:str,activeItem:str,**kwArgs):
+        '''
+        render the given template with the default arguments
+        
+        Args:
+            templateName(str): the name of the template to render
+            title(str): the title to display for html
+            activeItem(str): the name of the menu item to display as active
+        '''
+        html=render_template(templateName,title=title,menu=self.getMenu(activeItem),copyright=self.copyRight,**kwArgs)
+        return html
+        
     def home(self):
         '''
         show the main page
         '''
-        template="index.html"
+        template="scan2wiki/index.html"
         title="Scan2Wiki"
+        activeItem="Home"
         
-        html=render_template(template, title=title, menu=self.getMenuList())
+        html=self.render_template(template, title=title, activeItem=activeItem)
         return html
     
     def getScanFiles(self):
@@ -177,12 +197,15 @@ class Scan2WikiServer(AppWrap):
         Args:
             path(str): the path to render
         '''
+        template="scan2wiki/datatable.html"
+        title="Scans"
+        activeItem=title
         fullpath=f"{self.scandir}/{path}"
         if os.path.isdir(fullpath):
             # https://stackoverflow.com/questions/57073384/how-to-add-flask-autoindex-in-an-html-page
             # return files_index.render_autoindex(path,template="scans.html")
             dictList,lodKeys,tableHeaders=self.getScanFiles()
-            return render_template('datatable.html',title="Scans",menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+            return self.render_template(templateName=template,title=title,activeItem=activeItem,dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         else:
             return send_from_directory(self.scandir,path)
 
@@ -195,7 +218,8 @@ class Scan2WikiServer(AppWrap):
             path(str): the path to render
         '''
         title='upload'
-        template="upload.html"
+        template="scan2wiki/upload.html"
+        activeItem="Scans"
         uploadForm=UploadForm()
         wikiChoices=[]
         for archive in self.archivesByName.values():
@@ -210,27 +234,28 @@ class Scan2WikiServer(AppWrap):
             uploadForm.fromDocument(doc)
             pass
         uploadForm.update()
-        html=render_template(template, title=title, menu=self.getMenuList(),uploadForm=uploadForm)
+        html=self.render_template(template, title=title, activeItem=activeItem,uploadForm=uploadForm)
         return html
         
     def watchDir(self):
         title="Scan2Wiki"
-        template="watch.html"
+        template="scan2wiki/watch.html"
+        activeItem="Scan-Directory"
         watchForm=WatchForm()
         if watchForm.validate_on_submit():
             filename = secure_filename(watchForm.file.data.filename)
         else:
             watchForm.scandirField.data=self.scandir
             pass
-        html=render_template(template, title=title, menu=self.getMenuList(),watchForm=watchForm)
+        html=self.render_template(template, title=title,activeItem=activeItem,watchForm=watchForm)
         return html
     
-    def getMenuList(self):
+    def getMenu(self,activeItem:str):
         '''
         set up the menu for this application
         '''
         menu=Menu()
-        menu.addItem(MenuItem("/","Home"))
+        menu.addItem(MenuItem("/","Home",mdiIcon="home"))
         menu.addItem(MenuItem("/archives","Archives"))
         menu.addItem(MenuItem("/folders","Folders"))
         menu.addItem(MenuItem("/documents","Documents"))
@@ -238,6 +263,17 @@ class Scan2WikiServer(AppWrap):
         menu.addItem(MenuItem("/files","Scans"))
         menu.addItem(MenuItem('http://wiki.bitplan.com/index.php/scan2wiki',"Docs")),
         menu.addItem(MenuItem('https://github.com/WolfgangFahl/scan2wiki','github'))
+        if current_user.is_anonymous:
+            menu.addItem(MenuItem('/login','login',mdiIcon="login"))
+        else:
+            menu.addItem(MenuItem('/logout','logout',mdiIcon="logout"))
+        if activeItem is not None:
+            for menuItem in menu.items:
+                if isinstance(menuItem,MenuItem):
+                    if menuItem.title==activeItem:
+                        menuItem.active=True
+                    menuItem.url=self.basedUrl(menuItem.url)
+        return menu
         return menu
     
     def linkColumn(self,name,record,formatWith=None,formatTitleWith=None):
@@ -447,7 +483,8 @@ class Scan2WikiServer(AppWrap):
         for row in dictList:
             rowHandler(row)
         title=em.entityPluralName
-        return render_template('datatable.html',title=title,menu=self.getMenuList(),dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        template="scan2wiki/datatable.html"
+        return self.render_template(templateName=template,title=title,activeItem=title,dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
         
         
     @staticmethod
