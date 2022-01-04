@@ -47,9 +47,8 @@ class Scan2WikiServer(AppWrap):
         template_folder=scriptdir + '/../templates'
         if host is None:
             host=socket.gethostname()
-        super().__init__(host=host,port=port,debug=debug,template_folder=template_folder)
-        # https://flask.palletsprojects.com/en/2.0.x/config/#EXPLAIN_TEMPLATE_LOADING
-        self.app.config['EXPLAIN_TEMPLATE_LOADING']=True
+        super().__init__(host=host,port=port,debug=debug,template_folder=template_folder,explainTemplateLoading=True)
+        
         self.sseBluePrint=SSE_BluePrint(self.app,'sse')
         self.loginBluePrint=LoginBluePrint(self.app,'login',welcome="home")
         # server specific configurations
