@@ -12,7 +12,7 @@ pylodstorage~=0.0.85
 # https://pypi.org/project/pdfminer/
 pdfminer
 # web server with Flask and Bootstrap4
-pyFlaskBootstrap4>=0.4.1
+pyFlaskBootstrap4~=0.4.4
 # https://pypi.org/project/watchdog/
 watchdog
 # https://pypi.org/project/APScheduler/
