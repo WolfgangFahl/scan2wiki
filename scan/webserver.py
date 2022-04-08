@@ -30,7 +30,6 @@ import werkzeug
 from flask.helpers import send_from_directory
 from lodstorage.jsonable import JSONAble
 from lodstorage.lod import LOD
-from lodstorage.storageconfig import StoreMode
 werkzeug.cached_property = werkzeug.utils.cached_property
 import socket
 
