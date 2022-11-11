@@ -6,6 +6,7 @@ Created on 22.10.2021
 import unittest
 from tests.basetest import BaseTest
 from scan.dms import Archive,ArchiveManager,FolderManager,DocumentManager
+from scan.profiler import Profiler
 
 class TestDMS(BaseTest):
     '''
@@ -63,7 +64,9 @@ class TestDMS(BaseTest):
         expected={}
         expected["wiki"]=0
         if not self.inPublicCI():
+            archives=[]
             amb=ArchiveManager.getInstance(mode='json')
+            amb.fromCache()
             for archive in amb.archives:
                 if not hasattr(archive,"wikiid"):
                     archives.append(archive)
@@ -71,11 +74,11 @@ class TestDMS(BaseTest):
             expected["fahl-scan"]=190
         for archive in archives:
             store=self.inPublicCI()
+            store=True
             if store:
                 # prepare managers
                 FolderManager.getInstance()
                 DocumentManager.getInstance()
-            #store=True
             am.addFilesAndFoldersForArchive(archive,store=store)
             
             #if not self.inPublicCI():
@@ -84,6 +87,38 @@ class TestDMS(BaseTest):
             #folder=foldersByName["/bitplan/scan/2019"]
             #if self.debug:
             #        print (folder.toJSON())
+            
+    def testOCRText(self):
+        """
+        test OCR text access
+        """
+        dm=DocumentManager.getInstance()
+        doc_count=len(dm.documents)
+        print(doc_count)
+        i_list=[]
+        i_list.extend(range(4,11))
+        i_list.extend(range(13,14))
+        i_list.extend(range(17,20))
+        for i in i_list:
+            doc=dm.documents[i]
+            print(f"{i+1:4}:{doc.name} ...")
+            profiler=Profiler(msg="OCR Text reading")
+            profiler.start()
+            ocr_text=doc.getOcrText()
+            _elapsed,elapsedMessage=profiler.time()
+            print(f"... {len(ocr_text):6} {elapsedMessage}")
+            
+    def testUnicodeDammit(self):
+        """
+        """
+        if not self.inPublicCI():
+            from bs4 import UnicodeDammit
+            with open('/Volumes/bitplan/scan/2007/.ocr/IT-Management_2007-05_Automatisierte_Effizienz_p001.txt', 'rb') as file:
+                content = file.read()
+                suggestion = UnicodeDammit(content)
+                encoding=suggestion.original_encoding
+                print(encoding)
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

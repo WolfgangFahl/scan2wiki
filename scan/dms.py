@@ -25,7 +25,8 @@ from wikibot.wikiclient import WikiClient
 from wikibot.wikiuser import WikiUser
 from wikibot.smw import SMWClient
 from scan.logger import Logger
-
+from bs4 import UnicodeDammit
+ 
 class Wiki(object):
     '''
     Semantic Mediawiki access proxy
@@ -230,6 +231,13 @@ class Document(JSONAble):
         '''
         pass
     
+    def fromDict(self,record):
+        """
+        overwrite the from Dict
+        """
+        super().fromDict(record)
+        pass
+    
     def fromFile(self,folderPath,file,local=False,withOcr=False):
         '''
         Args:
@@ -248,7 +256,7 @@ class Document(JSONAble):
         self.baseName=Path(self.fullpath).stem
         self.pageTitle=f"{self.baseName}"
         
-        self.categories="2021"
+        self.categories=f"datetime.date.today().year"
         self.topic="OCRDocument"
         if withOcr:
             self.getOcrText()
@@ -272,11 +280,46 @@ class Document(JSONAble):
             pdfText=PDFMiner.getPDFText(self.fullpath)
         return pdfText
     
+    def readTextFromFile(self,fileName):
+        try:
+            with open(fileName, 'r') as textFile:
+                return textFile.read()
+        except UnicodeDecodeError as _ude:
+            #print(f"couldn't decode {fileName}")
+            with open(fileName, 'rb') as file:
+                content = file.read()
+                suggestion = UnicodeDammit(content)
+                encoding=suggestion.original_encoding
+                return content.decode(encoding)
+            
     def getOcrText(self):
         '''
         get the OCR 
         '''
-        self.ocrText=self.getPDFText()
+        parent=Path(self.fullpath).parent.absolute()
+        ocrPath=f"{parent}/.ocr"
+        self.ocrText=None
+        if os.path.isdir(ocrPath):
+            ocrFileName=f"{ocrPath}/{self.basename}.txt"
+            if os.path.isfile(ocrFileName):
+                self.ocrText=self.readTextFromFile(ocrFileName)
+            else: 
+                page=1
+                maxPages=1000
+                pageFileName=f"{ocrPath}/{self.basename}_p{page:03d}.txt"
+                if os.path.isfile(pageFileName):
+                    pageText=self.readTextFromFile(pageFileName)
+                    if pageText is not None:
+                        self.ocrText=pageText
+                        for page in range(2,maxPages):
+                            pageFileName=f"{ocrPath}/{self.basename}_p{page:03d}.txt"
+                            if not os.path.isfile(pageFileName):
+                                break
+                            nextPage=self.readTextFromFile(pageFileName)
+                            if nextPage is not None:
+                                self.ocrText+=nextPage
+        if self.ocrText is None:
+            self.ocrText=self.getPDFText()
         return self.ocrText 
             
     def uploadFile(self,wikiId):
