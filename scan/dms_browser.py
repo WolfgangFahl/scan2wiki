@@ -3,6 +3,14 @@ Created on 2022-11-15
 
 @author: wf
 '''
+import os
+from jpcore.compat import Compatibility;Compatibility(0,11,1)
+from jpcore.justpy_config import JpConfig
+script_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.dirname(script_dir)+"/static"
+JpConfig.set("STATIC_DIRECTORY",static_dir)
+JpConfig.setup()
+
 from jpwidgets.bt5widgets import App
 import sys
 

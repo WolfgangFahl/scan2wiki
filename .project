@@ -3,6 +3,7 @@
 	<name>scan2wiki</name>
 	<comment></comment>
 	<projects>
+		<project>justpy</project>
 		<project>py-3rdparty-mediawiki</project>
 		<project>pyFlaskBootstrap4</project>
 		<project>pyLoDStorage</project>
