@@ -10,7 +10,7 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 from scan.pdf import PDFMiner
 from pathlib import Path
-from wikibot.wikipush import WikiPush
+from wikibot3rd.wikipush import WikiPush
 from lodstorage.storageconfig import StorageConfig, StoreMode
 from lodstorage.jsonable import JSONAble
 from lodstorage.sql import SQLDB
@@ -21,9 +21,9 @@ import getpass
 import re
 import os
 import sys
-from wikibot.wikiclient import WikiClient
-from wikibot.wikiuser import WikiUser
-from wikibot.smw import SMWClient
+from wikibot3rd.wikiclient import WikiClient
+from wikibot3rd.wikiuser import WikiUser
+from wikibot3rd.smw import SMWClient
 from scan.logger import Logger
 from bs4 import UnicodeDammit
  

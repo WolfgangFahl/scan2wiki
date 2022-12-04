@@ -18,7 +18,7 @@ from flask_wtf import FlaskForm
 from pathlib import Path
 from datetime import datetime, timedelta
 from scan.profiler import Profiler
-from wikibot.wikiuser import WikiUser
+from wikibot3rd.wikiuser import WikiUser
 from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
 from scan.logger import Logger
 import sys
