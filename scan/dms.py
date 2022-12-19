@@ -802,10 +802,8 @@ class ArchiveManager(EntityManager):
             if len(folders)>0:
                 fms=FolderManager(mode='sql')
                 fms.folders=folders
-                fms.store(append=True)
+                fms.store(append=True,replace=True)
             if len(documentList)>0:
                 dms=DocumentManager(mode='sql')
                 dms.documents=documentList
-                dms.store(append=True)
-
-
+                dms.store(append=True,replace=True)
