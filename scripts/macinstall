@@ -1,5 +1,0 @@
-#!/bin/bash
-# WF 2021-03-21
-# install for MacOS
-#  https://stackoverflow.com/a/42732226/1497139
-python macsetup.py py2app --emulate-shell-environment
