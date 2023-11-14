@@ -281,7 +281,10 @@ class Document(JSONAble):
             pdfText=PDFMiner.getPDFText(self.fullpath)
         return pdfText
     
-    def readTextFromFile(self,fileName):
+    def readTextFromFile(self,fileName:str)->str:
+        """
+        read text from the given fileName
+        """
         try:
             with open(fileName, 'r') as textFile:
                 return textFile.read()
@@ -291,7 +294,13 @@ class Document(JSONAble):
                 content = file.read()
                 suggestion = UnicodeDammit(content)
                 encoding=suggestion.original_encoding
-                return content.decode(encoding)
+                if encoding is None:
+                    encoding="utf-8"
+                try:
+                    text=content.decode(encoding)
+                except Exception as ex:
+                    raise(ex)
+                return text
             
     def getOcrText(self):
         '''

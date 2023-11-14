@@ -94,11 +94,14 @@ class TestDMS(Basetest):
         """
         dm = DocumentManager.getInstance()
         doc_count = len(dm.documents)
-        print(doc_count)
+        debug=True
+        if debug:
+            print(doc_count)
         i_list = []
-        i_list.extend(range(4, 11))
-        i_list.extend(range(13, 14))
-        i_list.extend(range(17, 20))
+        if doc_count>20:
+            i_list.extend(range(4, 11))
+            i_list.extend(range(13, 14))
+            i_list.extend(range(17, 20))
         for i in i_list:
             doc = dm.documents[i]
             print(f"{i+1:4}:{doc.name} ...")
