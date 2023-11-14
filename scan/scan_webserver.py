@@ -9,9 +9,11 @@ from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.webserver import WebserverConfig
 from scan.version import Version
-from scan.dms import DMSStorage
 from scan.scans import Scans
 from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
+from wikibot3rd.wikiuser import WikiUser
+from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
+from scan.upload import UploadForm
 
 class ScanWebServer(InputWebserver):
     """
@@ -34,6 +36,17 @@ class ScanWebServer(InputWebserver):
         InputWebserver.__init__(self, config=ScanWebServer.get_config())
         self.scandir = DMSStorage.getScanDir()
         self.scans = Scans(self.scandir)
+        self.wiki_users=WikiUser.getWikiUsers()
+        self.sql_db=DMSStorage.getSqlDB()
+        self.am=ArchiveManager.getInstance()
+        self.fm=FolderManager.getInstance()
+        self.dm=DocumentManager.getInstance()
+        self.archivesByName,_dup=self.am.getLookup("name")
+        
+        @ui.page('/upload/{path:path}')
+        async def upload(client:Client,path:str=None):
+            await client.connected()
+            return await self.upload(path)
         
         @app.get('/delete/{path:path}')
         def delete(path:str=None):
@@ -44,6 +57,17 @@ class ScanWebServer(InputWebserver):
         @app.get('/files/{path:path}')
         def files(path:str='.'):
             return self.files(path)
+        
+    async def upload(self,path:str=None):
+        """
+        handle upload requests
+        """
+        self.setup_menu()
+        if path:
+            ui.notify(f"upload of {path} requested")
+        self.upload_form=UploadForm(self,self.wiki_users,path)
+        await self.setup_footer()
+    
         
     def files(self,path:str="."):
         """

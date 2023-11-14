@@ -26,7 +26,8 @@ from wikibot3rd.wikiuser import WikiUser
 from wikibot3rd.smw import SMWClient
 from scan.logger import Logger
 from bs4 import UnicodeDammit
- 
+from datetime import datetime
+
 class Wiki(object):
     '''
     Semantic Mediawiki access proxy
@@ -256,7 +257,7 @@ class Document(JSONAble):
         self.baseName=Path(self.fullpath).stem
         self.pageTitle=f"{self.baseName}"
         
-        self.categories=f"datetime.date.today().year"
+        self.categories=f"{datetime.now().year}"
         self.topic="OCRDocument"
         if withOcr:
             self.getOcrText()
