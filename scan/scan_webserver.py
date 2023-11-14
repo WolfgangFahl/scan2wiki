@@ -11,7 +11,7 @@ from ngwidgets.webserver import WebserverConfig
 from scan.version import Version
 from scan.dms import DMSStorage
 from scan.scans import Scans
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
 
 class ScanWebServer(InputWebserver):
     """
@@ -32,13 +32,36 @@ class ScanWebServer(InputWebserver):
     def __init__(self):
         """Constructs all the necessary attributes for the WebServer object."""
         InputWebserver.__init__(self, config=ScanWebServer.get_config())
-        scandir = DMSStorage.getScanDir()
-        self.scans = Scans(scandir)
+        self.scandir = DMSStorage.getScanDir()
+        self.scans = Scans(self.scandir)
         
         @app.get('/delete/{path:path}')
         def delete(path:str=None):
             self.scans.delete(path)
             return RedirectResponse('/')
+        
+        @app.route('/files')
+        @app.get('/files/{path:path}')
+        def files(path:str='.'):
+            return self.files(path)
+        
+    def files(self,path:str="."):
+        """
+        show the files in the given path
+        
+        Args:
+            path(str): the path to render
+        """
+        fullpath=f"{self.scandir}/{path}"
+        if os.path.isdir(fullpath):
+            self.scans = Scans(fullpath)
+            return RedirectResponse("/")
+        elif os.path.isfile(fullpath):
+            file_response=FileResponse(fullpath)
+            return file_response
+        else:
+            msg=f"invalid path: {path}"
+            return HTMLResponse(content=msg, status_code=404)
 
     @classmethod
     def examples_path(cls) -> str:
