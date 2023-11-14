@@ -4,7 +4,7 @@ Created on 2023-11-14
 @author: wf
 """
 import os
-from nicegui import ui, Client
+from nicegui import ui,app,Client
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.input_webserver import InputWebserver
 from ngwidgets.webserver import WebserverConfig
@@ -34,6 +34,10 @@ class ScanWebServer(InputWebserver):
         InputWebserver.__init__(self, config=ScanWebServer.get_config())
         scandir = DMSStorage.getScanDir()
         self.scans = Scans(scandir)
+        
+        @app.get('/delete/{path:path}')
+        def delete(path:str=None):
+            return self.scans.delete(path)
 
     @classmethod
     def examples_path(cls) -> str:

@@ -9,7 +9,6 @@ from datetime import datetime
 from ngwidgets.widgets import Link
 from typing import List, Dict
 
-
 class Scans:
     """
     Class to handle operations related to scanned files.
@@ -67,3 +66,12 @@ class Scans:
                 raise Exception(msg)
 
         return scan_files
+    
+    def delete(self,path):
+        """
+        Args:
+            path(str): the file to delete
+        """
+        fullpath=self.get_full_path(path)
+        os.remove(fullpath)
+        
