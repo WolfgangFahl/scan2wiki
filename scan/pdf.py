@@ -1,6 +1,7 @@
 # derived from
 # https://stackoverflow.com/a/26351413/1497139
 
+from pdfminer.high_level import extract_text
 from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfpage import PDFPage
@@ -11,9 +12,9 @@ from pdfminer.layout import LAParams
 from io import StringIO
 
 class PDFMiner:
-    '''
-    PDFMiner wrapper to get PDF Text
-    '''
+    """
+    PDFMiner.six wrapper to get PDF Text
+    """
 
     @classmethod
     def getPDFText(cls,pdfFilenamePath,throwError:bool=True):
