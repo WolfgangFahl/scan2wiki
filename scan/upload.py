@@ -31,11 +31,12 @@ class UploadForm:
         current_date = datetime.now()
         self.categories = ui.input('categories',value=str(current_date.year)).bind_value_to(self.doc,"categories")
         self.topic = ui.input('topic',value="OCRDocument").bind_value_to(self.doc, "topic")
-        self.ocr_text = ui.textarea('Text').props('clearable').props("rows=15;cols=60").bind_value_to(self.doc,"ocrText")
+        self.ocr_text_area = ui.textarea('Text').props('clearable').props("rows=15;cols=60").bind_value_to(self.doc,"ocrText")
   
     async def run_ocr(self):
         ui.notify("Optical Character Recognition requested ...")
-        self.doc.getOcrText()
+        ocr_text=self.doc.getOcrText()
+        self.ocr_text_area.value=ocr_text
         
     def update(self):
         """
@@ -58,7 +59,7 @@ class UploadForm:
         doc.wikiUser = self.wiki_user_select.value
         doc.categories = self.categories.value
         if not withOcr:
-            doc.ocrText=self.ocr_text.value
+            doc.ocrText=self.ocr_text_area.value
         return doc
 
     def submit_form(self):
