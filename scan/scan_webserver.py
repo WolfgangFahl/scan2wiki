@@ -11,7 +11,7 @@ from ngwidgets.webserver import WebserverConfig
 from scan.version import Version
 from scan.dms import DMSStorage
 from scan.scans import Scans
-
+from fastapi.responses import RedirectResponse
 
 class ScanWebServer(InputWebserver):
     """
@@ -37,7 +37,8 @@ class ScanWebServer(InputWebserver):
         
         @app.get('/delete/{path:path}')
         def delete(path:str=None):
-            return self.scans.delete(path)
+            self.scans.delete(path)
+            return RedirectResponse('/')
 
     @classmethod
     def examples_path(cls) -> str:
