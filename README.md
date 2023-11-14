@@ -2,7 +2,7 @@
 Scan from ScanSnap to SemanticMediaWiki
 
 [![pypi](https://img.shields.io/pypi/pyversions/scan2wiki)](https://pypi.org/project/scan2wiki/)
-[![Github Actions Build](https://github.com/WolfgangFahl/scan2wiki/workflows/Build/badge.svg?branch=main)](https://github.com/WolfgangFahl/scan2wiki/actions?query=workflow%3ABuild+branch%3Amain)
+[![Github Actions Build](https://github.com/WolfgangFahl/scan2wiki/actions/workflows/build.yml/badge.svg)](https://github.com/WolfgangFahl/scan2wiki/actions/workflows/build.yml)
 [![PyPI Status](https://img.shields.io/pypi/v/scan2wiki.svg)](https://pypi.python.org/pypi/scan2wiki/)
 [![GitHub issues](https://img.shields.io/github/issues/WolfgangFahl/scan2wiki.svg)](https://github.com/WolfgangFahl/scan2wiki/issues)
 [![GitHub issues](https://img.shields.io/github/issues-closed/WolfgangFahl/scan2wiki.svg)](https://github.com/WolfgangFahl/scan2wiki/issues/?q=is%3Aissue+is%3Aclosed)
