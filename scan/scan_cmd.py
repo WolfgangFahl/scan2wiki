@@ -8,9 +8,9 @@ from scan.scan_webserver import ScanWebServer
 import sys
 from argparse import ArgumentParser
 
-class CompetenceCmd(WebserverCmd):
+class ScanCmd(WebserverCmd):
     """
-    Command line for diagrams server
+    Command line for scan2wiki web server
     """
     
     def getArgParser(self,description:str,version_msg)->ArgumentParser:
@@ -26,7 +26,7 @@ def main(argv:list=None):
     """
     main call
     """
-    cmd=CompetenceCmd(config=ScanWebServer.get_config(),webserver_cls=ScanWebServer)
+    cmd=ScanCmd(config=ScanWebServer.get_config(),webserver_cls=ScanWebServer)
     exit_code=cmd.cmd_main(argv)
     return exit_code
         
