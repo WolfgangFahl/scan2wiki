@@ -184,7 +184,7 @@ class UploadForm:
         """
         try:
             uploadDoc=self.doc
-            self.upload_log_filter.reset(7,1)
+            self.upload_log_filter.reset(8,1)
             time_msg=TimeMessage(f"uploading {uploadDoc.name} ({uploadDoc.size})")
             ui.notify(time_msg)
             wiki_id=self.wiki_user_select.value
