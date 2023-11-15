@@ -35,6 +35,19 @@ class Scans:
         """
         fullpath = os.path.join(self.scandir, path)
         return fullpath
+    
+    def get_file_link(self,path:str)->str:
+        """
+        get a link to the given file
+        
+        Args:
+            path(str) the path to the file
+            
+        Returns:
+            str: The html markup for the RESTFul API to show the file
+        """
+        link=Link.create(url=f"/files/{path}", text=path)
+        return link
 
     def get_scan_files(self) -> List[Dict[str, object]]:
         """
@@ -51,7 +64,7 @@ class Scans:
                 ftime = datetime.fromtimestamp(os.path.getmtime(fullpath))
                 ftimestr = ftime.strftime("%Y-%m-%d %H:%M:%S")
                 size = os.path.getsize(fullpath)
-                file_link = Link.create(url=f"/files/{path}", text=path)
+                file_link = self.get_file_link(path)
                 scan_file = {
                     "#": index+1,
                     "name": file_link,
