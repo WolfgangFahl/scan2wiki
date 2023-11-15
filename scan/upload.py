@@ -59,15 +59,10 @@ class UploadLogFilter(logging.Filter):
         self.module_counter[record.module]+=1
         if sum(self.module_counter.values()) % self.per_log == 0:
             self.progressbar.update(self.progress_step)  # Increment progress bar by stepsize
-        # Parse log message
-        if "progress" in record.msg:
-            # Update progress bar
-            # extract progress info from record.msg
-            pass
-        elif "log" in record.msg:
-            # Update GUI log
-            # add log message to GUI
-            pass
+        msg=str(record.msg).lower()    
+        # make sure errors are still shown
+        if "error" in msg:
+            return False
         return True # Prevent standard logging
 
 class UploadForm:
@@ -78,6 +73,7 @@ class UploadForm:
         """
         constructor
         """
+        self.rem_value = 48  # Default rem value           
         self.task_handler = BackgroundTaskHandler()
         self.red_link="color: red;text-decoration: underline;"
         self.blue_link="color: blue;text-decoration: underline;"
@@ -107,8 +103,8 @@ class UploadForm:
         """
         setup the upload form
         """
-        with ui.splitter(value=30) as splitter:
-            with splitter.before:
+        with ui.splitter(value=30).classes("h-fit").style("flex:1") as self.splitter:
+            with self.splitter.before:
                 with ui.card().tight():
                     with ui.card_section():
                         self.progressbar = NiceguiProgressbar(100,"processing page","steps")
@@ -124,13 +120,14 @@ class UploadForm:
                         current_date = datetime.now()
                         self.categories = ui.input('categories',value=str(current_date.year)).bind_value_to(self.doc,"categories")
                         self.topic = ui.input('topic',value="OCRDocument").bind_value_to(self.doc, "topic")
-            with splitter.after as self.pdf_container:
+            with self.splitter.after as self.pdf_container:
                 with ui.element("div").classes("w-full h-full"):
                     self.ocr_text_area = ui.textarea('Text').props('clearable').props("rows=25;cols=80").bind_value_to(self.doc,"ocrText")
-                    ui.separator()            
+                    ui.separator() 
+                    self.rem_slider = ui.slider(min=10, max=100, step=1, value=self.rem_value, on_change=self.update_pdf_viewer_height)
                     # Embedding the PDF within a div that takes the full width and height
                     pdf_html = f"""<embed src="{self.scanned_file_url}" type="application/pdf" style="width:100%; height:100%;">"""
-                    self.pdf_viewer = ui.html(pdf_html).classes('w-full h-full')
+                    self.pdf_viewer = ui.html(pdf_html).classes('w-full h-[48rem]')
                         
     async def run_ocr(self):
         """
@@ -149,6 +146,15 @@ class UploadForm:
         except Exception as ex:
             self.webserver.handle_exception(ex)
         
+    async def update_pdf_viewer_height(self, e):
+        """
+        Update the height of the PDF viewer based on the slider value.
+        """
+        self.rem_value = e.value
+        new_height = f"h-[{self.rem_value}rem]"  # Calculate the new height in rem
+        self.pdf_viewer.classes = f'w-full {new_height}'  # Update the PDF viewer height
+        self.splitter.update()
+
     def update_progress(self, progress):
         self.progressbar.value = progress
         
