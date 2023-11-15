@@ -3,7 +3,9 @@ Created on 2023-11-14
 
 @author: wf
 """
+import logging
 import os
+import sys
 from nicegui import ui,app,Client
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.input_webserver import InputWebserver
@@ -14,6 +16,7 @@ from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
 from wikibot3rd.wikiuser import WikiUser
 from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
 from scan.upload import UploadForm
+from ngwidgets.background import BackgroundTaskHandler
 
 class ScanWebServer(InputWebserver):
     """
@@ -42,10 +45,14 @@ class ScanWebServer(InputWebserver):
         self.fm=FolderManager.getInstance()
         self.dm=DocumentManager.getInstance()
         self.archivesByName,_dup=self.am.getLookup("name")
+        self.bth=BackgroundTaskHandler()
+        app.on_shutdown(self.bth.cleanup())
+        self.stdout_handler = logging.StreamHandler(stream=sys.stdout) 
+        self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
         
         @ui.page('/upload/{path:path}')
         async def upload(client:Client,path:str=None):
-            await client.connected(timeout=5.0)
+            await client.connected(timeout=10.0)
             return await self.upload(path)
         
         @app.get('/delete/{path:path}')
@@ -58,16 +65,22 @@ class ScanWebServer(InputWebserver):
         def files(path:str='.'):
             return self.files(path)
         
+    async def setup_footer(self):
+        """
+        add handlers for stdout and stderr
+        """
+        await super().setup_footer(with_log=True,handle_logging=False,max_lines=100,log_classes="w-full h-20")
+        
     async def upload(self,path:str=None):
         """
         handle upload requests
         """
         self.setup_menu()
-        if path:
-            ui.notify(f"upload of {path} requested")
-        self.upload_form=UploadForm(self,self.wiki_users,path)
-        await self.setup_footer(max_lines=100,log_classes="w-full h-20")
-    
+        with ui.element("div").classes("w-full h-fit").style("flex:1"):    
+            if path:
+                ui.notify(f"upload of {path} requested")
+            self.upload_form=UploadForm(self,self.wiki_users,path)
+        await self.setup_footer()
         
     def files(self,path:str="."):
         """
