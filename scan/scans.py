@@ -46,8 +46,9 @@ class Scans:
         Returns:
             str: The html markup for the RESTFul API to show the file
         """
-        link=Link.create(url=f"/files/{path}", text=path)
-        return link
+        url=f"/files/{path}"
+        link=Link.create(url, text=path)
+        return url,link
 
     def get_scan_files(self) -> List[Dict[str, object]]:
         """
@@ -64,7 +65,7 @@ class Scans:
                 ftime = datetime.fromtimestamp(os.path.getmtime(fullpath))
                 ftimestr = ftime.strftime("%Y-%m-%d %H:%M:%S")
                 size = os.path.getsize(fullpath)
-                file_link = self.get_file_link(path)
+                _file_url,file_link = self.get_file_link(path)
                 scan_file = {
                     "#": index+1,
                     "name": file_link,

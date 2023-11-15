@@ -45,7 +45,7 @@ class ScanWebServer(InputWebserver):
         
         @ui.page('/upload/{path:path}')
         async def upload(client:Client,path:str=None):
-            await client.connected()
+            await client.connected(timeout=5.0)
             return await self.upload(path)
         
         @app.get('/delete/{path:path}')
@@ -66,7 +66,7 @@ class ScanWebServer(InputWebserver):
         if path:
             ui.notify(f"upload of {path} requested")
         self.upload_form=UploadForm(self,self.wiki_users,path)
-        await self.setup_footer()
+        await self.setup_footer(max_lines=100,log_classes="w-full h-20")
     
         
     def files(self,path:str="."):
