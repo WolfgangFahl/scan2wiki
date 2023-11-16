@@ -1,4 +1,45 @@
 #!/bin/bash
-# WF 2020-03-25
+# WF 2023-11-16
+# Updated to include conditional installation for zbar
+
+# Upgrade pip
 pip install --upgrade pip
+
+# Install Python dependencies from your project
 pip install .
+
+# Check the operating system
+OS_NAME=$(uname -s)
+
+case "$OS_NAME" in
+    Darwin)
+        # macOS
+        if command -v brew >/dev/null 2>&1; then
+            # Install zbar using Homebrew
+            brew install zbar
+        elif command -v port >/dev/null 2>&1; then
+            # Install zbar using MacPorts
+            sudo port install zbar
+        else
+            echo "Error: Homebrew or MacPorts is required to install zbar on macOS."
+            exit 1
+        fi
+        ;;
+
+    Linux)
+        # Linux (assuming Debian-based systems)
+        sudo apt-get update
+        sudo apt-get install -y libzbar0
+        ;;
+
+    MINGW*|MSYS*|CYGWIN*)
+        # Windows (assuming usage of Git Bash or similar environment)
+        # For actual Windows command line, consider using Chocolatey
+        echo "Please manually install zbar for Windows or use Chocolatey in a PowerShell or CMD script."
+        ;;
+
+    *)
+        echo "Unsupported OS: $OS_NAME"
+        exit 1
+        ;;
+esac
