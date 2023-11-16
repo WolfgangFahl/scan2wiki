@@ -15,7 +15,7 @@ class Version(object):
     version=scan.__version__
     description='Scan to Wiki by watching a scan folder'
     date = '2021-12-20'
-    updated = '2023-11-14'
+    updated = '2023-11-16'
     
     authors = 'Wolfgang Fahl'
     

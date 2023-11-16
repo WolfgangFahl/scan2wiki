@@ -95,7 +95,23 @@ class Products:
             self.products_by_ean[product.ean] = product
         if product.asin:
             self.products_by_asin[product.asin] = product
+            
+    def delete_product(self, asin: str):
+        """
+        Delete a product with the given ASIN.
 
+        Args:
+            asin (str): The ASIN of the product to delete.
+        """
+        # Delete the product from the products list
+        if asin in self.products.products_by_asin:
+            product = self.products.products_by_asin[asin]
+            self.products.products.remove(product)
+            del self.products.products_by_asin[asin]
+            if product.ean and product.ean in self.products.products_by_ean:
+                del self.products.products_by_ean[product.ean]
+            self.products.save_to_json()  # Save the updated product list
+ 
     def get_aggrid_lod(self) -> List[Dict[str, str]]:
         """
         Generates a list of dictionaries for ag-Grid representation of the products.

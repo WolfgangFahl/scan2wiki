@@ -9,8 +9,10 @@ from pathlib import Path
 from datetime import datetime
 from ngwidgets.widgets import Link
 from ngwidgets.background import BackgroundTaskHandler
+from ngwidgets.lod_grid import ListOfDictsGrid
 from scan.barcode import Barcode
 from scan.amazon import Amazon
+from scan.product import Products
 
 class WebcamForm:
     """
@@ -31,8 +33,11 @@ class WebcamForm:
         self.url = default_url
         self.shot_url = f"{self.url}/shot.jpg"
         self.image_path = None
-        self.setup_form()
         self.amazon=Amazon(self.webserver.debug)
+        self.products = Products()  # Initialize the Products instance
+        self.products.load_from_json()  # Load existing products
+        self.setup_form()
+        self.update_product_grid()
 
     def notify(self, msg):
         ui.notify(msg)
@@ -91,8 +96,16 @@ class WebcamForm:
         # HTML container for the webcam video stream
         self.webcam_input = ui.input(value=self.url)
         self.image_link = ui.html().style(self.blue_link)
+        self.product_grid = ListOfDictsGrid(auto_size_columns=True) 
         self.barcode_results = ui.html("")
         self.preview = ui.html()
+        
+    def update_product_grid(self):
+        """
+        Update the product grid with the current products.
+        """
+        lod = self.products.get_aggrid_lod()
+        self.product_grid.load_lod(lod)    
 
     async def scan_barcode(self):
         """
@@ -116,6 +129,8 @@ class WebcamForm:
                             product_html = product.as_html()
                             product_details = product_html
                             msg=f"found {product.title}"
+                            self.products.add_product(product)
+                            self.products.save_to_json()  # Save the updated product list
                         else:
                             msg="No matching Amazon product found."
                             product_details = f"<p>{msg}</p>"
@@ -133,6 +148,7 @@ class WebcamForm:
         
             self.notify(msg)
             self.barcode_results.content = html_markup
+            self.update_product_grid()  # Update the product grid   
         except Exception as ex:
             self.webserver.handle_exception(ex)
 
