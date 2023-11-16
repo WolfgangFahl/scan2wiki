@@ -26,7 +26,7 @@ class TestAmazon(Basetest):
                                          price="4,99 €")  # Note the space instead of '\xa0'
             }
             debug=self.debug
-            debug=True
+            #debug=True
             amazon=Amazon(debug=debug)
             # Testing each search key
             for search_key, expected_product in searches.items():

@@ -98,40 +98,43 @@ class WebcamForm:
         """
         Scan for barcodes in the most recently saved webcam image and look up products on Amazon.
         """
-        msg = "No image to scan for barcodes."
-        html_markup = ""
-    
-        if self.image_path:
-            barcode_path = f"{self.scandir}/{self.image_path}"
-            barcode_list = Barcode.decode(barcode_path)
-            if barcode_list:
-                results = []
-                for barcode in barcode_list:
-                    # Perform Amazon lookup for each barcode
-                    amazon_products = self.amazon.lookup_products(barcode.code)
-                    if amazon_products:
-                        # Assuming you want to display the first product found for each barcode
-                        product = amazon_products[0]
-                        product_html = product.as_html()
-                        product_details = product_html
-                        msg=f"found {product.title}"
-                    else:
-                        msg="No matching Amazon product found."
-                        product_details = f"<p>{msg}</p>"
-    
-                    barcode_result = f"<p>Code: {barcode.code}, Type: {barcode.type}, {product_details}</p>"
-                    results.append(barcode_result)
-    
-                html_markup = "<div>" + "".join(results) + "</div>"
-            else:
-                msg = "No barcodes found."
-                html_markup = f"<div><p>{msg}</p></div>"
-        else:
+        try:
             msg = "No image to scan for barcodes."
-            html_markup = f"<div><p>{msg}</p></div>"
-    
-        self.notify(msg)
-        self.barcode_results.content = html_markup
+            html_markup = ""
+        
+            if self.image_path:
+                barcode_path = f"{self.scandir}/{self.image_path}"
+                barcode_list = Barcode.decode(barcode_path)
+                if barcode_list:
+                    results = []
+                    for barcode in barcode_list:
+                        # Perform Amazon lookup for each barcode
+                        amazon_products = self.amazon.lookup_products(barcode.code)
+                        if amazon_products:
+                            # Assuming you want to display the first product found for each barcode
+                            product = amazon_products[0]
+                            product_html = product.as_html()
+                            product_details = product_html
+                            msg=f"found {product.title}"
+                        else:
+                            msg="No matching Amazon product found."
+                            product_details = f"<p>{msg}</p>"
+        
+                        barcode_result = f"<p>Code: {barcode.code}, Type: {barcode.type}, {product_details}</p>"
+                        results.append(barcode_result)
+        
+                    html_markup = "<div>" + "".join(results) + "</div>"
+                else:
+                    msg = "No barcodes found."
+                    html_markup = f"<div><p>{msg}</p></div>"
+            else:
+                msg = "No image to scan for barcodes."
+                html_markup = f"<div><p>{msg}</p></div>"
+        
+            self.notify(msg)
+            self.barcode_results.content = html_markup
+        except Exception as ex:
+            self.webserver.handle_exception(ex)
 
     def update_preview(self, image_path: str = None):
         """

@@ -3,6 +3,7 @@ Created on 12023-11-16
 
 @author: wf
 """
+import random
 import requests
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
@@ -117,14 +118,31 @@ class Amazon:
     
         return products
     
+    def get_headers(self):
+        # Possible components of a user agent string
+        browsers = ["Chrome", "Firefox", "Safari", "Edge"]
+        operating_systems = ["Windows NT 10.0; Win64; x64", "Macintosh; Intel Mac OS X 10_15_7", "X11; Linux x86_64"]
+        platforms = ["AppleWebKit/537.36 (KHTML, like Gecko)", "Gecko/20100101 Firefox/76.0", "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1 Safari/605.1.15"]
+
+        # Randomly select one component from each category
+        browser = random.choice(browsers)
+        os = random.choice(operating_systems)
+        platform = random.choice(platforms)
+
+        # Construct the user agent string
+        user_agent = f"Mozilla/5.0 ({os}) {platform} {browser}/58.0.3029.110"
+
+        headers = {"User-Agent": user_agent}
+        return headers
+
+    
     def lookup_products(self,search_key:str):
         """
         lookup the given search key e.g. ISBN or EAN
         """
         url = f"https://www.amazon.de/s?k={search_key}"
         
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
+        headers = self.get_headers() 
     
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
