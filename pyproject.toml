@@ -39,8 +39,11 @@ dependencies = [
 	# https://pypi.org/project/APScheduler/
 	"APScheduler",
 	# https://pypi.org/project/beautifulsoup4/
-	"beautifulsoup4>=4.11.1"
-]
+	"beautifulsoup4>=4.11.1",
+	# https://github.com/NaturalHistoryMuseum/pyzbar
+	# https://pypi.org/project/pyzbar/
+	"pyzbar>=0.1.9"
+]	
 
 requires-python = ">=3.9"
 classifiers=[
