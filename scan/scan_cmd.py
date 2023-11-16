@@ -20,6 +20,7 @@ class ScanCmd(WebserverCmd):
         parser=super().getArgParser(description, version_msg)
         parser.add_argument("-v", "--verbose", action="store_true", help="show verbose output [default: %(default)s]")
         parser.add_argument("-rp", "--root_path",default=ScanWebServer.examples_path(),help="path to example pdf files [default: %(default)s]")
+        parser.add_argument("-wc", "--webcam",help="url of webcam for scans [default: %(default)s]")
         return parser
     
 def main(argv:list=None):

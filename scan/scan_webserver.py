@@ -16,6 +16,7 @@ from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
 from wikibot3rd.wikiuser import WikiUser
 from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
 from scan.upload import UploadForm
+from scan.webcam import WebcamForm
 from ngwidgets.background import BackgroundTaskHandler
 
 class ScanWebServer(InputWebserver):
@@ -49,11 +50,17 @@ class ScanWebServer(InputWebserver):
         app.on_shutdown(self.bth.cleanup())
         self.stdout_handler = logging.StreamHandler(stream=sys.stdout) 
         self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
+        self.timeout=10.0
         
         @ui.page('/upload/{path:path}')
         async def upload(client:Client,path:str=None):
-            await client.connected(timeout=10.0)
+            await client.connected(timeout=self.timeout)
             return await self.upload(path)
+        
+        @ui.page('/webcam')
+        async def webcam(client:Client):
+            await client.connected(timeout=self.timeout)
+            return await self.webcam()
         
         @app.get('/delete/{path:path}')
         def delete(path:str=None):
@@ -71,6 +78,12 @@ class ScanWebServer(InputWebserver):
         """
         await super().setup_footer(with_log=True,handle_logging=False,max_lines=100,log_classes="w-full h-20")
         
+    async def webcam(self):
+        self.setup_menu()
+        with ui.element("div").classes("w-full h-fit").style("flex:1"):    
+            self.webcam_form=WebcamForm(self,self.args.webcam)
+            
+        await self.setup_footer()
     async def upload(self,path:str=None):
         """
         handle upload requests
