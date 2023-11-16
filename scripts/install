@@ -10,7 +10,7 @@ pip install .
 
 # Check the operating system
 OS_NAME=$(uname -s)
-
+echo "installing scan2wiki on $OS_NAME"
 case "$OS_NAME" in
     Darwin)
         # macOS
