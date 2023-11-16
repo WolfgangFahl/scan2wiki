@@ -99,6 +99,8 @@ class WebcamForm:
         Scan for barcodes in the most recently saved webcam image and look up products on Amazon.
         """
         msg = "No image to scan for barcodes."
+        html_markup = ""
+    
         if self.image_path:
             barcode_path = f"{self.scandir}/{self.image_path}"
             barcode_list = Barcode.decode(barcode_path)
@@ -110,23 +112,26 @@ class WebcamForm:
                     if amazon_products:
                         # Assuming you want to display the first product found for each barcode
                         product = amazon_products[0]
-                        product_details = f"Product: {product.title}, Price: {product.price}, ASIN: {product.asin}"
+                        product_html = product.as_html()
+                        product_details = product_html
+                        msg=f"found {product.title}"
                     else:
-                        product_details = "No matching Amazon product found."
+                        msg="No matching Amazon product found."
+                        product_details = f"<p>{msg}</p>"
     
-                    barcode_result = f"Code: {barcode.code}, Type: {barcode.type}, {product_details}"
+                    barcode_result = f"<p>Code: {barcode.code}, Type: {barcode.type}, {product_details}</p>"
                     results.append(barcode_result)
     
-                msg = "\n".join(results)
+                html_markup = "<div>" + "".join(results) + "</div>"
             else:
                 msg = "No barcodes found."
+                html_markup = f"<div><p>{msg}</p></div>"
         else:
             msg = "No image to scan for barcodes."
+            html_markup = f"<div><p>{msg}</p></div>"
     
         self.notify(msg)
-        html_markup = f"<pre>{msg}</pre>"
         self.barcode_results.content = html_markup
-
 
     def update_preview(self, image_path: str = None):
         """
