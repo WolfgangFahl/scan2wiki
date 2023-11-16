@@ -27,9 +27,10 @@ class TestAmazon(Basetest):
             }
             debug=self.debug
             debug=True
+            amazon=Amazon(debug=debug)
             # Testing each search key
             for search_key, expected_product in searches.items():
-                products = Amazon.lookup_products(search_key)
+                products = amazon.lookup_products(search_key)
                 self.assertTrue(products, f"No products found for search key: {search_key}")
                 product=products[0]
                 if debug:

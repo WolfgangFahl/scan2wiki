@@ -6,7 +6,7 @@ Created on 12023-11-16
 import requests
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class Product:
@@ -14,45 +14,69 @@ class Product:
     Data class representing a product.
 
     Attributes:
-        title (str): Title of the product.
-        image_url (str): URL of the product image.
-        price (str): Price of the product.
+        title (str): The title of the product.
+        image_url (str): The URL of the product image.
+        price (str): The price of the product.
+        asin (Optional[str]): The Amazon Standard Identification Number (ASIN) of the product, 
+                              which is a unique identifier on Amazon's platform.
     """
     title: str
     image_url: str
     price: str
+    asin: Optional[str] = None
+
+    @property
+    def amazon_url(self) -> str:
+        return f"https://www.amazon.com/dp/{self.asin}" if self.asin else None
+
     
 class Amazon:
     """
     lookup products on amazon web site
     """
     
-    @classmethod
-    def extract_amazon_products(cls, soup: BeautifulSoup) -> List[Product]:
+    def __init__(self,debug: Optional[bool] = False):
+        """
+        constructor
+        
+        Args:
+            debug (bool, optional): If set to True, pretty-prints the first product div for debugging.
+        """
+        self.debug=debug    
+            
+    def extract_amazon_products(self, soup: BeautifulSoup) -> List[Product]:
         """
         Extracts product information from Amazon product listing HTML content.
     
         Args:
             soup (BeautifulSoup): Soup object of HTML content of the Amazon product listing page.
-    
+   
         Returns:
             List[Product]: A list of extracted product information as Product objects.
         """
         products = []    
         # Find all div elements that match the product listing structure
-        for div in soup.find_all("div", class_="puisg-row"):
+        for index, div in enumerate(soup.find_all("div", class_="puisg-row")):
             product_info = {}
+            
+            # Pretty-print the first product div if debug is True
+            if self.debug and index == 0:
+                print("Debug - First Product Div:")
+                print(div.prettify())  # Pretty-print the first div
             
             # Extracting product title
             title_div = div.find("h2", class_="a-size-mini")
             if title_div and title_div.a:
                 product_info['title'] = title_div.a.get_text(strip=True)
     
-            # Extracting product image URL
+            # Extracting product image URL and ASIN
             image_div = div.find("div", class_="s-product-image-container")
-            if image_div and image_div.img:
+            if image_div and image_div.a:
                 product_info['image_url'] = image_div.img['src']
-            
+                link = image_div.a['href']
+                asin = link.split('/dp/')[-1].split('/')[0]
+                product_info['asin'] = asin
+                
             # Extracting product price
             price_span = div.find("span", class_="a-price")
             if price_span and price_span.find("span", class_="a-offscreen"):
@@ -67,14 +91,14 @@ class Amazon:
                 product = Product(
                     title=product_info['title'],
                     image_url=product_info.get('image_url', ''),
-                    price=product_info.get('price', '')
+                    price=product_info.get('price', ''),
+                    asin=product_info.get('asin', '')
                 )
                 products.append(product)
     
         return products
     
-    @classmethod
-    def lookup_products(cls,search_key:str):
+    def lookup_products(self,search_key:str):
         """
         lookup the given search key e.g. ISBN or EAN
         """
@@ -86,7 +110,7 @@ class Amazon:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            product_list=cls.extract_amazon_products(soup)
+            product_list=self.extract_amazon_products(soup)
             return product_list
         else:
             msg=f"lookup for {search_key} failed with HTML status code {response.status_code}" 

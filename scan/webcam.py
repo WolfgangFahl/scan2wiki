@@ -10,7 +10,7 @@ from datetime import datetime
 from ngwidgets.widgets import Link
 from ngwidgets.background import BackgroundTaskHandler
 from scan.barcode import Barcode
-
+from scan.amazon import Amazon
 
 class WebcamForm:
     """
@@ -32,6 +32,7 @@ class WebcamForm:
         self.shot_url = f"{self.url}/shot.jpg"
         self.image_path = None
         self.setup_form()
+        self.amazon=Amazon(self.webserver.debug)
 
     def notify(self, msg):
         ui.notify(msg)
@@ -95,25 +96,37 @@ class WebcamForm:
 
     async def scan_barcode(self):
         """
-        Scan for barcodes in the most recently saved webcam image.
+        Scan for barcodes in the most recently saved webcam image and look up products on Amazon.
         """
         msg = "No image to scan for barcodes."
         if self.image_path:
             barcode_path = f"{self.scandir}/{self.image_path}"
             barcode_list = Barcode.decode(barcode_path)
             if barcode_list:
-                results = "\n".join(
-                    [
-                        f"Code: {barcode.code}, Type: {barcode.type}"
-                        for barcode in barcode_list
-                    ]
-                )
-                msg = f"Barcodes found:\n{results}"
+                results = []
+                for barcode in barcode_list:
+                    # Perform Amazon lookup for each barcode
+                    amazon_products = self.amazon.lookup_products(barcode.code)
+                    if amazon_products:
+                        # Assuming you want to display the first product found for each barcode
+                        product = amazon_products[0]
+                        product_details = f"Product: {product.title}, Price: {product.price}, ASIN: {product.asin}"
+                    else:
+                        product_details = "No matching Amazon product found."
+    
+                    barcode_result = f"Code: {barcode.code}, Type: {barcode.type}, {product_details}"
+                    results.append(barcode_result)
+    
+                msg = "\n".join(results)
             else:
                 msg = "No barcodes found."
+        else:
+            msg = "No image to scan for barcodes."
+    
         self.notify(msg)
         html_markup = f"<pre>{msg}</pre>"
         self.barcode_results.content = html_markup
+
 
     def update_preview(self, image_path: str = None):
         """
