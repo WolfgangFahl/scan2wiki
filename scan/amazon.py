@@ -6,49 +6,8 @@ Created on 12023-11-16
 import random
 import requests
 from bs4 import BeautifulSoup
-from dataclasses import dataclass
 from typing import List, Optional
-
-@dataclass
-class Product:
-    """
-    Data class representing a product.
-
-    Attributes:
-        title (str): The title of the product.
-        image_url (str): The URL of the product image.
-        price (str): The price of the product.
-        asin (Optional[str]): The Amazon Standard Identification Number (ASIN) of the product, 
-                              which is a unique identifier on Amazon's platform.
-    """
-    title: str
-    image_url: str
-    price: str
-    asin: Optional[str] = None
-
-    @property
-    def amazon_url(self) -> str:
-        return f"https://www.amazon.com/dp/{self.asin}" if self.asin else None
-
-    def as_html(self, img_size: int = 128) -> str:
-        """
-        Returns an HTML representation of the product with an image thumbnail and a link to the product page.
-
-        Parameters:
-            img_size (int): Size of the image thumbnail.
-
-        Returns:
-            str: HTML string representation of the product.
-        """
-        html = f'<div>'
-        html += f'<img src="{self.image_url}" alt="{self.title}" width="{img_size}" height="{img_size}"/>'
-        if self.amazon_url:
-            html += f' <a href="{self.amazon_url}">{self.title}</a>'
-        else:
-            html += f' {self.title}'
-        html += f' - {self.price}'
-        html += f'</div>'
-        return html
+from scan.product import Product
     
 class Amazon:
     """
