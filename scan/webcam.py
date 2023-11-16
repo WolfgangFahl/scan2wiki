@@ -9,35 +9,43 @@ from pathlib import Path
 from datetime import datetime
 from ngwidgets.widgets import Link
 from ngwidgets.background import BackgroundTaskHandler
+from scan.barcode import Barcode
+
 
 class WebcamForm:
     """
     allow scanning pictures from a webcam
     """
-    
-    def __init__(self,webserver,default_url:str):
+
+    def __init__(self, webserver, default_url: str):
         """
         construct me
         """
         self.task_handler = BackgroundTaskHandler()
         # @TODO refactor to link
-        self.red_link="color: red;text-decoration: underline;"
-        self.blue_link="color: blue;text-decoration: underline;"
-     
-        self.webserver=webserver
-        self.scandir=webserver.scandir
-        self.url=default_url
-        self.shot_url=f"{self.url}/shot.jpg"
+        self.red_link = "color: red;text-decoration: underline;"
+        self.blue_link = "color: blue;text-decoration: underline;"
+
+        self.webserver = webserver
+        self.scandir = webserver.scandir
+        self.url = default_url
+        self.shot_url = f"{self.url}/shot.jpg"
+        self.image_path = None
         self.setup_form()
-        
+
+    def notify(self, msg):
+        ui.notify(msg)
+        if self.webserver.log_view:
+            self.webserver.log_view.push(msg)
+
     async def run_scan(self):
         """
         Start the scan process in the background.
         """
         _, scan_coro = self.task_handler.execute_in_background(self.save_webcam_shot)
-        image_path = await scan_coro()
-        self.update_preview(image_path)
-        
+        self.image_path = await scan_coro()
+        self.update_preview(self.image_path)
+
     def save_webcam_shot(self) -> str:
         """
         Fetches an image from the webcam URL and saves it with a timestamp in the specified directory.
@@ -45,32 +53,31 @@ class WebcamForm:
         Returns:
             str: The file name of the saved webcam image, or an error message if the fetch failed.
         """
-        image_file_name=None
+        image_file_name = None
         try:
-            response = requests.get(self.url + '/shot.jpg')
+            shot_url=f"{self.url}/shot.jpg"
+            response = requests.get(shot_url)
             if response.status_code == 200:
                 # Ensure the scandir directory exists
                 Path(self.scandir).mkdir(parents=True, exist_ok=True)
                 image_data = response.content
                 # Get current date and time without timezone information
-                timestamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
                 # Define the full path to save the image
                 image_file_name = f"webcam_{timestamp}.jpg"
                 image_file_path = Path(self.scandir) / image_file_name
                 # Write the image data to the file system
-                with open(image_file_path, 'wb') as image_file:
+                with open(image_file_path, "wb") as image_file:
                     image_file.write(image_data)
                 msg = f"Saved webcam image to {image_file_path}"
             else:
                 msg = f"Failed to fetch the webcam image. Status code: {response.status_code}"
                 image_file_name = ""
-    
-            ui.notify(msg)
-            if self.webserver.log_view:
-                self.webserver.log_view.push(msg)
+
+            self.notify(msg)
         except Exception as ex:
             self.webserver.handle_exception(ex)
-    
+
         return image_file_name
 
     def setup_form(self):
@@ -78,12 +85,35 @@ class WebcamForm:
         Setup the webcam form
         """
         # Button to refresh or scan the video stream
-        self.scan_button = ui.button('Scan', on_click=self.run_scan)
-        
+        self.scan_button = ui.button("Scan", on_click=self.run_scan)
+        self.barcode_button = ui.button("Barcode", on_click=self.scan_barcode)
         # HTML container for the webcam video stream
-        self.webcam_input=ui.input(value=self.url)
-        self.image_link=ui.html().style(self.blue_link)
+        self.webcam_input = ui.input(value=self.url)
+        self.image_link = ui.html().style(self.blue_link)
+        self.barcode_results = ui.html("")
         self.preview = ui.html()
+
+    async def scan_barcode(self):
+        """
+        Scan for barcodes in the most recently saved webcam image.
+        """
+        msg = "No image to scan for barcodes."
+        if self.image_path:
+            barcode_path = f"{self.scandir}/{self.image_path}"
+            barcode_list = Barcode.decode(barcode_path)
+            if barcode_list:
+                results = "\n".join(
+                    [
+                        f"Code: {barcode.code}, Type: {barcode.type}"
+                        for barcode in barcode_list
+                    ]
+                )
+                msg = f"Barcodes found:\n{results}"
+            else:
+                msg = "No barcodes found."
+        self.notify(msg)
+        html_markup = f"<pre>{msg}</pre>"
+        self.barcode_results.content = html_markup
 
     def update_preview(self, image_path: str = None):
         """
