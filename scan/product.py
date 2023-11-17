@@ -27,7 +27,7 @@ class Product:
     image_url: str
     price: str
     asin: Optional[str] = None
-    ean: Optional[str] = None
+    gtin: Optional[str] = None
 
     @property
     def amazon_url(self) -> str:
@@ -49,6 +49,8 @@ class Product:
             html += f' <a href="{self.amazon_url}">{self.title}</a>'
         else:
             html += f' {self.title}'
+        if self.gtin:
+            html+=f"Code: {self.gtin}"
         html += f' - {self.price}'
         html += f'</div>'
         return html
@@ -61,7 +63,7 @@ class Products:
         store_path (str): The file path where products are stored as JSON.
         products (List[Product]): List of product instances.
         products_by_asin (Dict[str, Product]): Dictionary mapping ASIN to products.
-        products_by_ean (Dict[str, Product]): Dictionary mapping EAN to products.
+        products_by_gtin (Dict[str, Product]): Dictionary mapping gtin to products.
     """
 
     def __init__(self, store_path: str = None):
@@ -81,20 +83,33 @@ class Products:
         """
         self.products = []
         self.products_by_asin = {}
-        self.products_by_ean = {}
+        self.products_by_gtin = {}
 
     def add_product(self, product: Product):
         """
         Adds a product to the product list and updates the mappings.
-
+        If a product with the same ASIN already exists, it updates the existing record.
+    
         Args:
             product (Product): The product instance to add.
         """
-        self.products.append(product)
-        if product.ean:
-            self.products_by_ean[product.ean] = product
-        if product.asin:
-            self.products_by_asin[product.asin] = product
+        # Update product if it already exists in the by_asin list
+        if product.asin and product.asin in self.products_by_asin:
+            existing_product = self.products_by_asin[product.asin]
+            existing_product.title = product.title
+            existing_product.image_url = product.image_url
+            existing_product.price = product.price
+            existing_product.gtin = product.gtin
+        else:
+            # Add the product to the list and mappings
+            self.products.append(product)
+            if product.asin:
+                self.products_by_asin[product.asin] = product
+            if product.gtin:
+                self.products_by_gtin[product.gtin] = product
+    
+        # Sort the products list by ASIN
+        self.products.sort(key=lambda p: p.asin if p.asin else "")
             
     def delete_product(self, asin: str):
         """
@@ -108,8 +123,8 @@ class Products:
             product = self.products.products_by_asin[asin]
             self.products.products.remove(product)
             del self.products.products_by_asin[asin]
-            if product.ean and product.ean in self.products.products_by_ean:
-                del self.products.products_by_ean[product.ean]
+            if product.gtin and product.gtin in self.products.products_by_gtin:
+                del self.products.products_by_gtin[product.gtin]
             self.products.save_to_json()  # Save the updated product list
  
     def get_aggrid_lod(self) -> List[Dict[str, str]]:
@@ -126,7 +141,7 @@ class Products:
                 "Product": product.as_html(),
                 "ASIN": Link.create(product.amazon_url, product.asin) if product.asin else "",
                 "Title": product.title,
-                "EAN": product.ean if product.ean else "",
+                "gtin": product.gtin if product.gtin else "",
                 "Price": product.price
             }
             lod.append(product_dict)

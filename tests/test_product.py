@@ -18,16 +18,16 @@ class TestProduct(Basetest):
         Test adding products, storing and reloading them.
         """
         debug=self.debug
-        debug=True
+        #debug=True
         # Test data setup
         examples = [
             Product(title="The Beatles - A Hard Day's Night", 
             image_url="https://m.media-amazon.com/images/I/81m01dZR2UL._AC_UY218_.jpg", 
             price="4,99 €", asin="B00KHK1SW2",
-            ean="4020628887711")
+            gtin="4020628887711")
         ]
 
-        use_temp=False
+        use_temp=True
         if use_temp:
             # Creating Products instance
             temp_dir = tempfile.mkdtemp()  # Create a temporary directory
@@ -56,7 +56,7 @@ class TestProduct(Basetest):
 
         # Check if the loaded products match the added products
         for expected_product in examples:
-            loaded_product = products.products_by_ean[expected_product.ean]
+            loaded_product = products.products_by_gtin[expected_product.gtin]
             self.assertEqual(expected_product.title, loaded_product.title)
             self.assertEqual(expected_product.image_url, loaded_product.image_url)
             self.assertEqual(expected_product.price, loaded_product.price)

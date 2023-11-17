@@ -18,6 +18,7 @@ from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, 
 from scan.upload import UploadForm
 from scan.webcam import WebcamForm
 from ngwidgets.background import BackgroundTaskHandler
+from scan.entity_view import EntityManagerView
 
 class ScanWebServer(InputWebserver):
     """
@@ -62,6 +63,11 @@ class ScanWebServer(InputWebserver):
             await client.connected(timeout=self.timeout)
             return await self.webcam()
         
+        @ui.page('/archives')
+        async def show_archives(client:Client):
+            await client.connected(timeout=self.timeout)
+            return await self.show_archives()
+        
         @app.get('/delete/{path:path}')
         def delete(path:str=None):
             self.scans.delete(path)
@@ -79,21 +85,19 @@ class ScanWebServer(InputWebserver):
         await super().setup_footer(with_log=True,handle_logging=False,max_lines=100,log_classes="w-full h-20")
         
     async def webcam(self):
-        self.setup_menu()
-        with ui.element("div").classes("w-full h-fit").style("flex:1"):    
+        def setup_webcam():
             self.webcam_form=WebcamForm(self,self.args.webcam)
-            
-        await self.setup_footer()
+        await self.setup_content_div(setup_webcam)
+        
     async def upload(self,path:str=None):
         """
         handle upload requests
         """
-        self.setup_menu()
-        with ui.element("div").classes("w-full h-fit").style("flex:1"):    
+        def setup_upload_form():
             if path:
                 ui.notify(f"upload of {path} requested")
             self.upload_form=UploadForm(self,self.wiki_users,path)
-        await self.setup_footer()
+        await self.setup_content_div(setup_upload_form)
         
     def files(self,path:str="."):
         """
@@ -120,7 +124,7 @@ class ScanWebServer(InputWebserver):
         path = os.path.abspath(path)
         return path
     
-    async def update_scans(self):
+    def update_scans(self):
         """
         update the scans grid
         """
@@ -129,13 +133,29 @@ class ScanWebServer(InputWebserver):
             self.lod_grid.load_lod(lod)
         except Exception as ex:
             self.handle_exception(ex,self.do_trace)
+            
+    async def show_archives(self):
+        def setup_show_archives():
+            """
+            show the archives
+            """
+            am_view=EntityManagerView(self.am)
+            am_view.show()
+        await self.setup_content_div(setup_show_archives)
+        
+    def configure_menu(self):
+        """
+        configure additional non-standard menu entries
+        """
+        self.link_button(name='Webcam',icon_name='photo_camera',target='/webcam')       
+        self.link_button(name='Archives',icon_name='database',target='/archives')       
+        pass
     
     async def home(self, _client: Client):
         """
         provide the main content page
-
         """
-        self.setup_menu()
-        self.lod_grid = ListOfDictsGrid(auto_size_columns=True)
-        await self.update_scans()
-        await self.setup_footer()
+        def setup_home():
+            self.lod_grid = ListOfDictsGrid(auto_size_columns=True)
+            self.update_scans()
+        await(self.setup_content_div(setup_home))
