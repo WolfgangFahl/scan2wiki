@@ -166,16 +166,17 @@ class Products:
         with open(filename, 'w') as file:
             json.dump(product_data, file, indent=2)
 
-    def load_from_json(self, filename: str = None):
+    def load_from_json(self, filepath: str = None):
         """
         Loads products from a JSON file and updates the current list and mappings.
 
         Args:
-            filename (str, optional): The filename from which to load the JSON data.
+            filepath (str, optional): The filepath from which to load the JSON data.
                                       Defaults to the instance's store_path attribute.
         """
-        filename = filename or self.store_path
-        with open(filename, 'r') as file:
-            product_data = json.load(file)
-        for data in product_data:
-            self.add_product(Product(**data))
+        filename = filepath or self.store_path
+        if os.path.exists(filename):
+            with open(filepath, 'r') as file:
+                product_records = json.load(file)
+            for product_record in product_records:
+                self.add_product(Product(**product_record))
