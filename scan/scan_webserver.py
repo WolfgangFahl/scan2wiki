@@ -135,6 +135,9 @@ class ScanWebServer(InputWebserver):
             self.handle_exception(ex,self.do_trace)
             
     async def show_archives(self):
+        """
+        show archives
+        """
         def setup_show_archives():
             """
             show the archives
