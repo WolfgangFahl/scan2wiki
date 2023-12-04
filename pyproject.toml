@@ -7,12 +7,15 @@ build-backend = "hatchling.build"
 name = "scan2wiki"
 description = "scan2wiki - DMS with option to scan documents to a semantic mediawiki"
 home-page = "https://github.com/WolfgangFahl/scan2wiki"
+
 authors = [
   {name = "Wolfgang Fahl", email = "wf@WolfgangFahl.com"}
 ]
+
 maintainers = [
   { name = "Wolfgang Fahl", email = "wf@WolfgangFahl.com" },
 ]
+
 readme = "README.md"
 license = {text = "Apache-2.0"} 
 dependencies = [
@@ -59,7 +62,7 @@ classifiers=[
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License"
-    ]
+]
 dynamic = ["version"]
 [tool.hatch.version]
 path = "scan/__init__.py"

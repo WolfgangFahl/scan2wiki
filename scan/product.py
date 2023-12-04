@@ -176,7 +176,7 @@ class Products:
         """
         filename = filepath or self.store_path
         if os.path.exists(filename):
-            with open(filepath, 'r') as file:
+            with open(filename, 'r') as file:
                 product_records = json.load(file)
             for product_record in product_records:
                 self.add_product(Product(**product_record))
