@@ -101,7 +101,7 @@ class WebcamForm:
         self.image_link = ui.html().style(self.blue_link)
         self.gtin_input=ui.input("gtin",value=self.gtin).bind_value(self,"gtin")
         self.barcode_results = ui.html("")
-        self.product_grid = ListOfDictsGrid(auto_size_columns=True) 
+        self.product_grid = ListOfDictsGrid() 
         # HTML container for the webcam snap shot
         self.preview = ui.html()
         

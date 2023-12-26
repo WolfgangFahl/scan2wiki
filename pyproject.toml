@@ -5,8 +5,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scan2wiki"
-description = "scan2wiki - DMS with option to scan documents to a semantic mediawiki"
+description = "scan2wiki - nicegui based DMS with option to scan documents to a semantic mediawiki"
 home-page = "https://github.com/WolfgangFahl/scan2wiki"
+keywords = [ "nicegui", "scan", "DMS", "OCR","mediawiki" ]
 
 authors = [
   {name = "Wolfgang Fahl", email = "wf@WolfgangFahl.com"}
@@ -20,7 +21,7 @@ readme = "README.md"
 license = {text = "Apache-2.0"} 
 dependencies = [
 	# https://github.com/WolfgangFahl/nicegui_widgets
-	"ngwidgets>=0.4.0",
+	"ngwidgets>=0.8.1",
 	# https://pypi.org/project/dataclasses-json/
 	"dataclasses-json>=0.6.1",
 	# Mediawiki and SMW API

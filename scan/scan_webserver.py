@@ -159,6 +159,6 @@ class ScanWebServer(InputWebserver):
         provide the main content page
         """
         def setup_home():
-            self.lod_grid = ListOfDictsGrid(auto_size_columns=True)
+            self.lod_grid = ListOfDictsGrid()
             self.update_scans()
         await(self.setup_content_div(setup_home))

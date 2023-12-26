@@ -1,0 +1,13 @@
+# Components of  https://github.com/WolfgangFahl/scan2wiki
+# to be shown in nicegui solution bazaar as per
+# https://github.com/WolfgangFahl/nicegui_widgets/issues/52
+# see http://ngdemo.bitplan.com/solutions
+# WF 2023-12-26
+components:
+- name: webcam.py
+  source: /scan/webcam.py
+  issue: 16
+  demo_url: https://github.com/zauberzeug/nicegui/discussions/2028
+  demo_image_url: https://github.com/WolfgangFahl/scan2wiki/assets/1336221/e238684f-075f-47b4-86c9-1cae7bdc7bb3
+  description: >
+    Allows scanning barcodes via an IP webcam
