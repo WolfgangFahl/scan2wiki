@@ -8,7 +8,6 @@ import os
 import sys
 
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.webserver import WebserverConfig
