@@ -80,7 +80,9 @@ class Scans:
             except Exception as ex:
                 msg = f"error {str(ex)} for {path}"
                 raise Exception(msg)
-
+        scan_files = sorted(scan_files, key=lambda x: x['lastModified'],reverse=True)
+        for index,scan_file in enumerate(scan_files):
+            scan_file["#"]=index+1
         return scan_files
 
     def delete(self, path):

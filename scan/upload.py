@@ -111,11 +111,11 @@ class UploadForm:
         """
         with ui.splitter(value=30).classes("h-fit").style("flex:1") as self.splitter:
             with self.splitter.before:
+                self.progressbar = NiceguiProgressbar(
+                    100, "processing page", "steps"
+                )
                 with ui.card().tight():
                     with ui.card_section():
-                        self.progressbar = NiceguiProgressbar(
-                            100, "processing page", "steps"
-                        )
                         self.submit = ui.button("upload", on_click=self.run_upload)
                         self.ocr = ui.button("ocr", on_click=self.run_ocr)
                     with ui.card_section():

@@ -6,7 +6,7 @@ Created on 21.03.2021
 from ngwidgets.basetest import Basetest
 
 from scan.dms import Document
-from scan.scan_webserver import ScanWebServer
+from scan.scan_webserver import ScanSolution
 
 
 class TestPDFExtract(Basetest):
@@ -16,7 +16,7 @@ class TestPDFExtract(Basetest):
 
     def setUp(self):
         Basetest.setUp(self)
-        self.testdata = ScanWebServer.examples_path()
+        self.testdata = ScanSolution.examples_path()
         # self.debug=True
         pass
 

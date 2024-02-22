@@ -169,7 +169,7 @@ class ScanSolution(InputWebSolution):
         try:
             lod = self.webserver.scans.get_scan_files()
             self.lod_grid.load_lod(lod)
-            self.log_grid.sizeColumnsToFit()
+            self.lod_grid.sizeColumnsToFit()
         except Exception as ex:
             self.handle_exception(ex)
 
