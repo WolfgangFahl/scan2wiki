@@ -8,10 +8,9 @@ import time
 from collections import Counter
 from datetime import datetime
 
-from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
-from nicegui import ui
+from nicegui import ui, run
 
 from scan.dms import Document
 
@@ -76,15 +75,15 @@ class UploadForm:
     upload form
     """
 
-    def __init__(self, webserver, wiki_users: dict, path: str):
+    def __init__(self, solution, wiki_users: dict, path: str):
         """
         constructor
         """
+        self.solution=solution
+        self.webserver = solution.webserver
         self.rem_value = 48  # Default rem value
-        self.task_handler = BackgroundTaskHandler()
         self.red_link = "color: red;text-decoration: underline;"
         self.blue_link = "color: blue;text-decoration: underline;"
-        self.webserver = webserver
         self.debug = self.webserver.debug
         self.scandir = self.webserver.scandir
         self.scans = self.webserver.scans
@@ -94,8 +93,8 @@ class UploadForm:
         self.doc.fromFile(folderPath=self.scandir, file=path, local=True, withOcr=False)
         self.setup_form()
         self.upload_log_filter = UploadLogFilter(self.progressbar)
-        self.webserver.logger.addHandler(self.webserver.stdout_handler)
-        self.webserver.logger.addHandler(self.webserver.stderr_handler)
+        self.webserver.logger.addHandler(self.solution.stdout_handler)
+        self.webserver.logger.addHandler(self.solution.stderr_handler)
         for logger_name in logging.Logger.manager.loggerDict:
             # print(logger_name)
             logger = logging.getLogger(logger_name)
@@ -127,7 +126,7 @@ class UploadForm:
                         )
                         self.page_link = ui.html("pagelink").style(self.red_link)
                         wiki_selection = list(sorted(self.wiki_users.keys()))
-                        self.wiki_user_select = self.webserver.add_select(
+                        self.wiki_user_select = self.solution.add_select(
                             title="Wiki",
                             selection=wiki_selection,
                             on_change=self.update,
@@ -174,12 +173,9 @@ class UploadForm:
             self.upload_log_filter.reset(1, 150)
             time_msg = TimeMessage(f"OCR for {self.doc.name} ({self.doc.size})")
             ui.notify(time_msg)
-            _, get_ocr_text_coro = self.task_handler.execute_in_background(
-                self.doc.getOcrText
-            )
-            ocr_text = await get_ocr_text_coro()
+            ocr_text = await run.io_bound(self.doc.getOcrText)
             self.ocr_text_area.value = ocr_text
-            self.upload_log_filter.show_stats(self.webserver.log_view)
+            self.upload_log_filter.show_stats(self.solution.log_view)
             ui.notify(time_msg.done())
             self.update_progress(100)
         except Exception as ex:
@@ -233,14 +229,11 @@ class UploadForm:
             time_msg = TimeMessage(f"uploading {uploadDoc.name} ({uploadDoc.size})")
             ui.notify(time_msg)
             wiki_id = self.wiki_user_select.value
-            _, upload_coro = self.task_handler.execute_in_background(
-                uploadDoc.uploadFile, wiki_id
-            )
-            await upload_coro()
-            self.upload_log_filter.show_stats(self.webserver.log_view)
+            await run.io_bound(uploadDoc.uploadFile, wiki_id)
+            self.upload_log_filter.show_stats(self.solution.log_view)
             ui.notify(time_msg.done())
             # self.update_progress(100)
             self.uploaded = True
             self.update()
         except Exception as ex:
-            self.webserver.handle_exception(ex)
+            self.solution.handle_exception(ex)

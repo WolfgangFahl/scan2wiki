@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 
 from ngwidgets.cmd import WebserverCmd
 
-from scan.scan_webserver import ScanWebServer
+from scan.scan_webserver import ScanWebServer, ScanSolution
 
 
 class ScanCmd(WebserverCmd):
@@ -30,7 +30,7 @@ class ScanCmd(WebserverCmd):
         parser.add_argument(
             "-rp",
             "--root_path",
-            default=ScanWebServer.examples_path(),
+            default=ScanSolution.examples_path(),
             help="path to example pdf files [default: %(default)s]",
         )
         parser.add_argument(

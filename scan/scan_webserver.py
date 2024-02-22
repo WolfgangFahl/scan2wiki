@@ -9,7 +9,7 @@ import sys
 
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from ngwidgets.background import BackgroundTaskHandler
-from ngwidgets.input_webserver import InputWebserver
+from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.webserver import WebserverConfig
 from nicegui import Client, app, ui
@@ -28,7 +28,6 @@ from scan.upload import UploadForm
 from scan.version import Version
 from scan.webcam import WebcamForm
 
-
 class ScanWebServer(InputWebserver):
     """
     server for Document Management system with option to scan to Semantic Mediawikis
@@ -39,11 +38,17 @@ class ScanWebServer(InputWebserver):
         """
         get the configuration for this Webserver
         """
-        copy_right = "(c)2020-2023 Wolfgang Fahl"
+        copy_right = "(c)2020-2024 Wolfgang Fahl"
         config = WebserverConfig(
-            copy_right=copy_right, version=Version(), default_port=8334
+            copy_right=copy_right, 
+            version=Version(), 
+            default_port=8334,
+            short_name="scan2wiki",
+            timeout=10.0
         )
-        return config
+        server_config = WebserverConfig.get(config)
+        server_config.solution_class = ScanSolution
+        return server_config
 
     def __init__(self):
         """Constructs all the necessary attributes for the WebServer object."""
@@ -56,26 +61,24 @@ class ScanWebServer(InputWebserver):
         self.fm = FolderManager.getInstance()
         self.dm = DocumentManager.getInstance()
         self.archivesByName, _dup = self.am.getLookup("name")
-        self.bth = BackgroundTaskHandler()
-        app.on_shutdown(self.bth.cleanup())
-        self.stdout_handler = logging.StreamHandler(stream=sys.stdout)
-        self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
-        self.timeout = 10.0
-
+  
         @ui.page("/upload/{path:path}")
         async def upload(client: Client, path: str = None):
-            await client.connected(timeout=self.timeout)
-            return await self.upload(path)
+            return await self.page(
+                client, ScanSolution.upload,path
+            )
 
         @ui.page("/webcam")
         async def webcam(client: Client):
-            await client.connected(timeout=self.timeout)
-            return await self.webcam()
+            return await self.page(
+                client, ScanSolution.webcam
+            )
 
         @ui.page("/archives")
         async def show_archives(client: Client):
-            await client.connected(timeout=self.timeout)
-            return await self.show_archives()
+            return await self.page(
+                client, ScanSolution.show_archives
+            )
 
         @app.get("/delete/{path:path}")
         def delete(path: str = None):
@@ -86,6 +89,42 @@ class ScanWebServer(InputWebserver):
         @app.get("/files/{path:path}")
         def files(path: str = "."):
             return self.files(path)
+        
+    def files(self, path: str = "."):
+        """
+        show the files in the given path
+
+        Args:
+            path(str): the path to render
+        """
+        fullpath = f"{self.scandir}/{path}"
+        if os.path.isdir(fullpath):
+            self.scans = Scans(fullpath)
+            return RedirectResponse("/")
+        elif os.path.isfile(fullpath):
+            file_response = FileResponse(fullpath)
+            return file_response
+        else:
+            msg = f"invalid path: {path}"
+            return HTMLResponse(content=msg, status_code=404)
+        
+class ScanSolution(InputWebSolution):
+    """
+    the Scan solution
+    """
+
+    def __init__(self, webserver: ScanWebServer, client: Client):
+        """
+        Initialize the solution
+
+        Calls the constructor of the base solution
+        Args:
+            webserver (ScanWebServer): The webserver instance associated with this context.
+            client (Client): The client instance this context is associated with.
+        """
+        super().__init__(webserver, client)  # Call to the superclass constructor
+        self.stdout_handler = logging.StreamHandler(stream=sys.stdout)
+        self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
 
     async def setup_footer(self):
         """
@@ -112,27 +151,9 @@ class ScanWebServer(InputWebserver):
         def setup_upload_form():
             if path:
                 ui.notify(f"upload of {path} requested")
-            self.upload_form = UploadForm(self, self.wiki_users, path)
+            self.upload_form = UploadForm(self, self.webserver.wiki_users, path)
 
         await self.setup_content_div(setup_upload_form)
-
-    def files(self, path: str = "."):
-        """
-        show the files in the given path
-
-        Args:
-            path(str): the path to render
-        """
-        fullpath = f"{self.scandir}/{path}"
-        if os.path.isdir(fullpath):
-            self.scans = Scans(fullpath)
-            return RedirectResponse("/")
-        elif os.path.isfile(fullpath):
-            file_response = FileResponse(fullpath)
-            return file_response
-        else:
-            msg = f"invalid path: {path}"
-            return HTMLResponse(content=msg, status_code=404)
 
     @classmethod
     def examples_path(cls) -> str:
@@ -146,10 +167,11 @@ class ScanWebServer(InputWebserver):
         update the scans grid
         """
         try:
-            lod = self.scans.get_scan_files()
+            lod = self.webserver.scans.get_scan_files()
             self.lod_grid.load_lod(lod)
+            self.log_grid.sizeColumnsToFit()
         except Exception as ex:
-            self.handle_exception(ex, self.do_trace)
+            self.handle_exception(ex)
 
     async def show_archives(self):
         """
@@ -160,7 +182,7 @@ class ScanWebServer(InputWebserver):
             """
             show the archives
             """
-            am_view = EntityManagerView(self.am)
+            am_view = EntityManagerView(self.webserver.am)
             am_view.show()
 
         await self.setup_content_div(setup_show_archives)
@@ -173,7 +195,7 @@ class ScanWebServer(InputWebserver):
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 
-    async def home(self, _client: Client):
+    async def home(self):
         """
         provide the main content page
         """
