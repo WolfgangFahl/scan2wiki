@@ -8,8 +8,7 @@ import os
 from ngwidgets.basetest import Basetest
 
 from scan.barcode import Barcode
-from scan.scan_webserver import ScanWebServer
-
+from scan.scan_webserver import ScanSolution
 
 class TestBarcode(Basetest):
     """
@@ -29,7 +28,7 @@ class TestBarcode(Basetest):
             ),
         }
 
-        examples_path = ScanWebServer.examples_path()
+        examples_path = ScanSolution.examples_path()
         root_path = f"{examples_path}/barcodes"
         barcode_files = os.listdir(root_path)
         barcodes = {}
