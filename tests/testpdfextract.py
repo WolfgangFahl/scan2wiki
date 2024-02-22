@@ -3,9 +3,11 @@ Created on 21.03.2021
 
 @author: wf
 """
-from scan.dms import Document
 from ngwidgets.basetest import Basetest
+
+from scan.dms import Document
 from scan.scan_webserver import ScanWebServer
+
 
 class TestPDFExtract(Basetest):
     """
@@ -15,7 +17,7 @@ class TestPDFExtract(Basetest):
     def setUp(self):
         Basetest.setUp(self)
         self.testdata = ScanWebServer.examples_path()
-        #self.debug=True
+        # self.debug=True
         pass
 
     def testPDFExtract(self):
@@ -30,7 +32,7 @@ class TestPDFExtract(Basetest):
         }
         for testFile in expected.keys():
             doc = Document()
-            doc.fromFile(self.testdata, testFile, withOcr=True,local=True)
+            doc.fromFile(self.testdata, testFile, withOcr=True, local=True)
             pdfText = doc.getOcrText()
             if testFile in expected:
                 if self.debug:

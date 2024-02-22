@@ -4,10 +4,12 @@ Created on 2023-11-16
 @author: wf
 """
 import logging
-from pyzbar.pyzbar import decode
-from PIL import Image
 from dataclasses import dataclass
-from typing import Optional,List
+from typing import List, Optional
+
+from PIL import Image
+from pyzbar.pyzbar import decode
+
 
 @dataclass
 class Barcode:
@@ -15,16 +17,16 @@ class Barcode:
     Barcode data structure with
     static methods e.g.  e.g. pyzbar barcode decoder wrapper
     """
+
     code: str
     type: str
     orientation: str
     rect: Optional[dict] = None
     polygon: Optional[List[dict]] = None
     quality: Optional[int] = None
- 
-   
+
     @staticmethod
-    def decode(image_file_path: str,debug: bool = False):
+    def decode(image_file_path: str, debug: bool = False):
         """
         Decodes barcodes from the image at the given file path.
 
@@ -42,12 +44,15 @@ class Barcode:
         image = Image.open(image_file_path)
         # Decode barcodes
         barcodes = decode(image)
-        barcode_list=[Barcode(
-            code=barcode.data.decode('utf-8'),
-            type=barcode.type,
-            rect=barcode.rect._asdict(),
-            polygon=[point._asdict() for point in barcode.polygon],
-            quality=barcode.quality,
-            orientation=barcode.orientation
-        ) for barcode in barcodes]
+        barcode_list = [
+            Barcode(
+                code=barcode.data.decode("utf-8"),
+                type=barcode.type,
+                rect=barcode.rect._asdict(),
+                polygon=[point._asdict() for point in barcode.polygon],
+                quality=barcode.quality,
+                orientation=barcode.orientation,
+            )
+            for barcode in barcodes
+        ]
         return barcode_list

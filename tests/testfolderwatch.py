@@ -3,11 +3,13 @@ Created on 2021-04-10
 
 @author: wf
 """
-from scan.folderwatcher import Watcher
-import os
-from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
+import os
+
+from apscheduler.schedulers.background import BackgroundScheduler
 from ngwidgets.basetest import Basetest
+
+from scan.folderwatcher import Watcher
 
 
 class TestFolderWatch(Basetest):

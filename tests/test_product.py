@@ -3,10 +3,13 @@ Created on 2023-11-16
 
 @author: wf
 """
-from ngwidgets.basetest import Basetest
-from scan.product import Product, Products
-import tempfile
 import os
+import tempfile
+
+from ngwidgets.basetest import Basetest
+
+from scan.product import Product, Products
+
 
 class TestProduct(Basetest):
     """
@@ -17,23 +20,26 @@ class TestProduct(Basetest):
         """
         Test adding products, storing and reloading them.
         """
-        debug=self.debug
-        #debug=True
+        debug = self.debug
+        # debug=True
         # Test data setup
         examples = [
-            Product(title="The Beatles - A Hard Day's Night", 
-            image_url="https://m.media-amazon.com/images/I/81m01dZR2UL._AC_UY218_.jpg", 
-            price="4,99 €", asin="B00KHK1SW2",
-            gtin="4020628887711")
+            Product(
+                title="The Beatles - A Hard Day's Night",
+                image_url="https://m.media-amazon.com/images/I/81m01dZR2UL._AC_UY218_.jpg",
+                price="4,99 €",
+                asin="B00KHK1SW2",
+                gtin="4020628887711",
+            )
         ]
 
-        use_temp=True
+        use_temp = True
         if use_temp:
             # Creating Products instance
             temp_dir = tempfile.mkdtemp()  # Create a temporary directory
             temp_file = os.path.join(temp_dir, "temp_products.json")
         else:
-            temp_file=None    
+            temp_file = None
         products = Products(store_path=temp_file)
 
         # Add example products
@@ -47,7 +53,7 @@ class TestProduct(Basetest):
 
         # Optionally print the saved JSON file content for debugging
         if debug:
-            with open(products.store_path, 'r') as file:
+            with open(products.store_path, "r") as file:
                 print("Saved JSON content:", file.read())
 
         # Clear current products and load them back from the file
@@ -66,7 +72,3 @@ class TestProduct(Basetest):
         if not debug:
             os.remove(temp_file)
             os.rmdir(temp_dir)
-
-
-
-    

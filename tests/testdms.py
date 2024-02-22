@@ -4,8 +4,10 @@ Created on 2021-10-21
 @author: wf
 """
 from ngwidgets.basetest import Basetest
-from scan.dms import Archive, ArchiveManager, FolderManager, DocumentManager
+
+from scan.dms import Archive, ArchiveManager, DocumentManager, FolderManager
 from scan.profiler import Profiler
+
 
 class TestDMS(Basetest):
     """
@@ -94,11 +96,11 @@ class TestDMS(Basetest):
         """
         dm = DocumentManager.getInstance()
         doc_count = len(dm.documents)
-        debug=True
+        debug = True
         if debug:
             print(doc_count)
         i_list = []
-        if doc_count>20:
+        if doc_count > 20:
             i_list.extend(range(4, 11))
             i_list.extend(range(13, 14))
             i_list.extend(range(17, 20))

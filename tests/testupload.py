@@ -4,9 +4,12 @@ Created on 2021-03-21
 @author: wf
 """
 from os import listdir
-from scan.dms import Document
+
 from ngwidgets.basetest import Basetest
+
+from scan.dms import Document
 from scan.scan_webserver import ScanWebServer
+
 
 class TestUpload(Basetest):
     """

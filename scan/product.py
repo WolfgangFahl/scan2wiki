@@ -5,11 +5,13 @@ Created on 2023-11-16
 """
 
 import json
-from typing import Dict, List, Optional
 import os
-from os.path import dirname,exists,expanduser
 from dataclasses import dataclass
+from os.path import dirname, exists, expanduser
+from typing import Dict, List, Optional
+
 from ngwidgets.widgets import Link
+
 
 @dataclass
 class Product:
@@ -20,9 +22,10 @@ class Product:
         title (str): The title of the product.
         image_url (str): The URL of the product image.
         price (str): The price of the product.
-        asin (Optional[str]): The Amazon Standard Identification Number (ASIN) of the product, 
+        asin (Optional[str]): The Amazon Standard Identification Number (ASIN) of the product,
                               which is a unique identifier on Amazon's platform.
     """
+
     title: str
     image_url: str
     price: str
@@ -43,17 +46,18 @@ class Product:
         Returns:
             str: HTML string representation of the product.
         """
-        html = f'<div>'
+        html = f"<div>"
         html += f'<img src="{self.image_url}" alt="{self.title}" width="{img_size}" height="{img_size}"/>'
         if self.amazon_url:
             html += f' <a href="{self.amazon_url}">{self.title}</a>'
         else:
-            html += f' {self.title}'
+            html += f" {self.title}"
         if self.gtin:
-            html+=f"Code: {self.gtin}"
-        html += f' - {self.price}'
-        html += f'</div>'
+            html += f"Code: {self.gtin}"
+        html += f" - {self.price}"
+        html += f"</div>"
         return html
+
 
 class Products:
     """
@@ -89,7 +93,7 @@ class Products:
         """
         Adds a product to the product list and updates the mappings.
         If a product with the same ASIN already exists, it updates the existing record.
-    
+
         Args:
             product (Product): The product instance to add.
         """
@@ -107,10 +111,10 @@ class Products:
                 self.products_by_asin[product.asin] = product
             if product.gtin:
                 self.products_by_gtin[product.gtin] = product
-    
+
         # Sort the products list by ASIN
         self.products.sort(key=lambda p: p.asin if p.asin else "")
-            
+
     def delete_product(self, asin: str):
         """
         Delete a product with the given ASIN.
@@ -126,7 +130,7 @@ class Products:
             if product.gtin and product.gtin in self.products.products_by_gtin:
                 del self.products.products_by_gtin[product.gtin]
             self.products.save_to_json()  # Save the updated product list
- 
+
     def get_aggrid_lod(self) -> List[Dict[str, str]]:
         """
         Generates a list of dictionaries for ag-Grid representation of the products.
@@ -139,10 +143,12 @@ class Products:
             product_dict = {
                 "#": str(index),
                 "Product": product.as_html(),
-                "ASIN": Link.create(product.amazon_url, product.asin) if product.asin else "",
+                "ASIN": Link.create(product.amazon_url, product.asin)
+                if product.asin
+                else "",
                 "Title": product.title,
                 "gtin": product.gtin if product.gtin else "",
-                "Price": product.price
+                "Price": product.price,
             }
             lod.append(product_dict)
         return lod
@@ -155,15 +161,15 @@ class Products:
             filename (str, optional): The filename where to save the JSON data.
                                       Defaults to the instance's store_path attribute.
         """
-        
+
         filename = filename or self.store_path
         # Ensure the directory for the store_path exists
         directory = dirname(filename)
         if not exists(directory):
             os.makedirs(directory, exist_ok=True)
-            
+
         product_data = [product.__dict__ for product in self.products]
-        with open(filename, 'w') as file:
+        with open(filename, "w") as file:
             json.dump(product_data, file, indent=2)
 
     def load_from_json(self, filepath: str = None):
@@ -176,7 +182,7 @@ class Products:
         """
         filename = filepath or self.store_path
         if os.path.exists(filename):
-            with open(filename, 'r') as file:
+            with open(filename, "r") as file:
                 product_records = json.load(file)
             for product_record in product_records:
                 self.add_product(Product(**product_record))

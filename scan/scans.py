@@ -6,8 +6,10 @@ Created on 2023-11-14
 
 import os
 from datetime import datetime
+from typing import Dict, List
+
 from ngwidgets.widgets import Link
-from typing import List, Dict
+
 
 class Scans:
     """
@@ -35,20 +37,20 @@ class Scans:
         """
         fullpath = os.path.join(self.scandir, path)
         return fullpath
-    
-    def get_file_link(self,path:str)->str:
+
+    def get_file_link(self, path: str) -> str:
         """
         get a link to the given file
-        
+
         Args:
             path(str) the path to the file
-            
+
         Returns:
             str: The html markup for the RESTFul API to show the file
         """
-        url=f"/files/{path}"
-        link=Link.create(url, text=path)
-        return url,link
+        url = f"/files/{path}"
+        link = Link.create(url, text=path)
+        return url, link
 
     def get_scan_files(self) -> List[Dict[str, object]]:
         """
@@ -59,15 +61,15 @@ class Scans:
             Each dictionary contains details like file name, last modified time, size, and links for delete and upload actions.
         """
         scan_files = []
-        for index,path in enumerate(os.listdir(self.scandir)):
+        for index, path in enumerate(os.listdir(self.scandir)):
             try:
                 fullpath = self.get_full_path(path)
                 ftime = datetime.fromtimestamp(os.path.getmtime(fullpath))
                 ftimestr = ftime.strftime("%Y-%m-%d %H:%M:%S")
                 size = os.path.getsize(fullpath)
-                _file_url,file_link = self.get_file_link(path)
+                _file_url, file_link = self.get_file_link(path)
                 scan_file = {
-                    "#": index+1,
+                    "#": index + 1,
                     "name": file_link,
                     "lastModified": ftimestr,
                     "size": size,
@@ -80,12 +82,11 @@ class Scans:
                 raise Exception(msg)
 
         return scan_files
-    
-    def delete(self,path):
+
+    def delete(self, path):
         """
         Args:
             path(str): the file to delete
         """
-        fullpath=self.get_full_path(path)
+        fullpath = self.get_full_path(path)
         os.remove(fullpath)
-        

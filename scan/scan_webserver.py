@@ -6,19 +6,28 @@ Created on 2023-11-14
 import logging
 import os
 import sys
-from nicegui import ui,app,Client
-from ngwidgets.lod_grid import ListOfDictsGrid
-from ngwidgets.input_webserver import InputWebserver
-from ngwidgets.webserver import WebserverConfig
-from scan.version import Version
-from scan.scans import Scans
-from fastapi.responses import RedirectResponse, FileResponse, HTMLResponse
-from wikibot3rd.wikiuser import WikiUser
-from scan.dms import DMSStorage,ArchiveManager, FolderManager, DocumentManager, Document
-from scan.upload import UploadForm
-from scan.webcam import WebcamForm
+
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from ngwidgets.background import BackgroundTaskHandler
+from ngwidgets.input_webserver import InputWebserver
+from ngwidgets.lod_grid import ListOfDictsGrid
+from ngwidgets.webserver import WebserverConfig
+from nicegui import Client, app, ui
+from wikibot3rd.wikiuser import WikiUser
+
+from scan.dms import (
+    ArchiveManager,
+    DMSStorage,
+    Document,
+    DocumentManager,
+    FolderManager,
+)
 from scan.entity_view import EntityManagerView
+from scan.scans import Scans
+from scan.upload import UploadForm
+from scan.version import Version
+from scan.webcam import WebcamForm
+
 
 class ScanWebServer(InputWebserver):
     """
@@ -41,80 +50,88 @@ class ScanWebServer(InputWebserver):
         InputWebserver.__init__(self, config=ScanWebServer.get_config())
         self.scandir = DMSStorage.getScanDir()
         self.scans = Scans(self.scandir)
-        self.wiki_users=WikiUser.getWikiUsers()
-        self.sql_db=DMSStorage.getSqlDB()
-        self.am=ArchiveManager.getInstance()
-        self.fm=FolderManager.getInstance()
-        self.dm=DocumentManager.getInstance()
-        self.archivesByName,_dup=self.am.getLookup("name")
-        self.bth=BackgroundTaskHandler()
+        self.wiki_users = WikiUser.getWikiUsers()
+        self.sql_db = DMSStorage.getSqlDB()
+        self.am = ArchiveManager.getInstance()
+        self.fm = FolderManager.getInstance()
+        self.dm = DocumentManager.getInstance()
+        self.archivesByName, _dup = self.am.getLookup("name")
+        self.bth = BackgroundTaskHandler()
         app.on_shutdown(self.bth.cleanup())
-        self.stdout_handler = logging.StreamHandler(stream=sys.stdout) 
+        self.stdout_handler = logging.StreamHandler(stream=sys.stdout)
         self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
-        self.timeout=10.0
-        
-        @ui.page('/upload/{path:path}')
-        async def upload(client:Client,path:str=None):
+        self.timeout = 10.0
+
+        @ui.page("/upload/{path:path}")
+        async def upload(client: Client, path: str = None):
             await client.connected(timeout=self.timeout)
             return await self.upload(path)
-        
-        @ui.page('/webcam')
-        async def webcam(client:Client):
+
+        @ui.page("/webcam")
+        async def webcam(client: Client):
             await client.connected(timeout=self.timeout)
             return await self.webcam()
-        
-        @ui.page('/archives')
-        async def show_archives(client:Client):
+
+        @ui.page("/archives")
+        async def show_archives(client: Client):
             await client.connected(timeout=self.timeout)
             return await self.show_archives()
-        
-        @app.get('/delete/{path:path}')
-        def delete(path:str=None):
+
+        @app.get("/delete/{path:path}")
+        def delete(path: str = None):
             self.scans.delete(path)
-            return RedirectResponse('/')
-        
-        @app.route('/files')
-        @app.get('/files/{path:path}')
-        def files(path:str='.'):
+            return RedirectResponse("/")
+
+        @app.route("/files")
+        @app.get("/files/{path:path}")
+        def files(path: str = "."):
             return self.files(path)
-        
+
     async def setup_footer(self):
         """
         add handlers for stdout and stderr
         """
-        await super().setup_footer(with_log=True,handle_logging=False,max_lines=100,log_classes="w-full h-20")
-        
+        await super().setup_footer(
+            with_log=True,
+            handle_logging=False,
+            max_lines=100,
+            log_classes="w-full h-20",
+        )
+
     async def webcam(self):
         def setup_webcam():
-            self.webcam_form=WebcamForm(self,self.args.webcam)
+            self.webcam_form = WebcamForm(self, self.args.webcam)
+
         await self.setup_content_div(setup_webcam)
-        
-    async def upload(self,path:str=None):
+
+    async def upload(self, path: str = None):
         """
         handle upload requests
         """
+
         def setup_upload_form():
             if path:
                 ui.notify(f"upload of {path} requested")
-            self.upload_form=UploadForm(self,self.wiki_users,path)
+            self.upload_form = UploadForm(self, self.wiki_users, path)
+
         await self.setup_content_div(setup_upload_form)
-        
-    def files(self,path:str="."):
+
+    def files(self, path: str = "."):
         """
         show the files in the given path
-        
+
         Args:
             path(str): the path to render
         """
-        fullpath=f"{self.scandir}/{path}"
+        fullpath = f"{self.scandir}/{path}"
         if os.path.isdir(fullpath):
             self.scans = Scans(fullpath)
             return RedirectResponse("/")
         elif os.path.isfile(fullpath):
-            file_response=FileResponse(fullpath)
+            file_response = FileResponse(fullpath)
             return file_response
         else:
-            msg=f"invalid path: {path}"
+            msg = f"invalid path: {path}"
             return HTMLResponse(content=msg, status_code=404)
 
     @classmethod
@@ -123,42 +140,46 @@ class ScanWebServer(InputWebserver):
         path = os.path.join(os.path.dirname(__file__), "../scan2wiki_examples")
         path = os.path.abspath(path)
         return path
-    
+
     def update_scans(self):
         """
         update the scans grid
         """
         try:
-            lod=self.scans.get_scan_files()
+            lod = self.scans.get_scan_files()
             self.lod_grid.load_lod(lod)
         except Exception as ex:
-            self.handle_exception(ex,self.do_trace)
-            
+            self.handle_exception(ex, self.do_trace)
+
     async def show_archives(self):
         """
         show archives
         """
+
         def setup_show_archives():
             """
             show the archives
             """
-            am_view=EntityManagerView(self.am)
+            am_view = EntityManagerView(self.am)
             am_view.show()
+
         await self.setup_content_div(setup_show_archives)
-        
+
     def configure_menu(self):
         """
         configure additional non-standard menu entries
         """
-        self.link_button(name='Webcam',icon_name='photo_camera',target='/webcam')       
-        self.link_button(name='Archives',icon_name='database',target='/archives')       
+        self.link_button(name="Webcam", icon_name="photo_camera", target="/webcam")
+        self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
-    
+
     async def home(self, _client: Client):
         """
         provide the main content page
         """
+
         def setup_home():
             self.lod_grid = ListOfDictsGrid()
             self.update_scans()
-        await(self.setup_content_div(setup_home))
+
+        await (self.setup_content_div(setup_home))
