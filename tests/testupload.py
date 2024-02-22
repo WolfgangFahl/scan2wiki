@@ -8,7 +8,7 @@ from os import listdir
 from ngwidgets.basetest import Basetest
 
 from scan.dms import Document
-from scan.scan_webserver import ScanWebServer
+from scan.scan_webserver import ScanSolution
 
 
 class TestUpload(Basetest):
@@ -18,7 +18,7 @@ class TestUpload(Basetest):
 
     def setUp(self):
         Basetest.setUp(self)
-        self.testdata = ScanWebServer.examples_path()
+        self.testdata = ScanSolution.examples_path()
 
     def testUpload(self):
         # don't test this in public CIs e.g. travis, github
