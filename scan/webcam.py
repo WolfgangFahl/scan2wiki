@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-from ngwidgets.background import BackgroundTaskHandler
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
 from nicegui import ui
@@ -26,11 +25,6 @@ class WebcamForm:
         """
         construct me
         """
-        self.task_handler = BackgroundTaskHandler()
-        # @TODO refactor to link
-        self.red_link = "color: red;text-decoration: underline;"
-        self.blue_link = "color: blue;text-decoration: underline;"
-
         self.webserver = webserver
         self.scandir = webserver.scandir
         self.url = default_url
@@ -101,7 +95,7 @@ class WebcamForm:
         self.lookup_button = ui.button("Lookup", on_click=self.lookup_gtin)
         self.add_button = ui.button("add", on_click=self.add_product)
         self.webcam_input = ui.input(value=self.url)
-        self.image_link = ui.html().style(self.blue_link)
+        self.image_link = ui.html().style(Link.blue)
         self.gtin_input = ui.input("gtin", value=self.gtin).bind_value(self, "gtin")
         self.barcode_results = ui.html("")
         self.product_grid = ListOfDictsGrid()
