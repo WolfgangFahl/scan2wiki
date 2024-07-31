@@ -11407,13 +11407,13 @@ If a product with the same ASIN already exists, it updates the existing record.<
 <span class="sd">    simple profiler</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        construct me with the given msg and profile active flag</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            msg(str): the message to show if profiling is active</span>
-<span class="sd">            profile(bool): True if messages should be shown</span>
+<span class="sd">            msg (str): the message to show if profiling is active</span>
+<span class="sd">            profile (bool): True if messages should be shown</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">msg</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
@@ -11484,8 +11484,9 @@ If a product with the same ASIN already exists, it updates the existing record.<
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>msg(str)</code></td>
+            <td><code>msg</code></td>
             <td>
+                  <code>str</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -11497,8 +11498,9 @@ If a product with the same ASIN already exists, it updates the existing record.<
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code>profile(bool)</code></td>
+            <td><code>profile</code></td>
             <td>
+                  <code>bool</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -11506,7 +11508,7 @@ If a product with the same ASIN already exists, it updates the existing record.<
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>True</code>
             </td>
           </tr>
       </tbody>
@@ -11523,13 +11525,13 @@ If a product with the same ASIN already exists, it updates the existing record.<
 <span class="normal">20</span>
 <span class="normal">21</span>
 <span class="normal">22</span>
-<span class="normal">23</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="normal">23</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span><span class="nb">str</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    construct me with the given msg and profile active flag</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        msg(str): the message to show if profiling is active</span>
-<span class="sd">        profile(bool): True if messages should be shown</span>
+<span class="sd">        msg (str): the message to show if profiling is active</span>
+<span class="sd">        profile (bool): True if messages should be shown</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="n">msg</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
@@ -12557,8 +12559,8 @@ Args:
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">copy_right</span> <span class="o">=</span> <span class="s2">&quot;(c)2020-2024 Wolfgang Fahl&quot;</span>
         <span class="n">config</span> <span class="o">=</span> <span class="n">WebserverConfig</span><span class="p">(</span>
-            <span class="n">copy_right</span><span class="o">=</span><span class="n">copy_right</span><span class="p">,</span> 
-            <span class="n">version</span><span class="o">=</span><span class="n">Version</span><span class="p">(),</span> 
+            <span class="n">copy_right</span><span class="o">=</span><span class="n">copy_right</span><span class="p">,</span>
+            <span class="n">version</span><span class="o">=</span><span class="n">Version</span><span class="p">(),</span>
             <span class="n">default_port</span><span class="o">=</span><span class="mi">8334</span><span class="p">,</span>
             <span class="n">short_name</span><span class="o">=</span><span class="s2">&quot;scan2wiki&quot;</span><span class="p">,</span>
             <span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span>
@@ -12612,7 +12614,7 @@ Args:
 <span class="sd">        show the files in the given path</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            path(str): the path to render</span>
+<span class="sd">            path (str): the path to render</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">fullpath</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">scandir</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">fullpath</span><span class="p">):</span>
@@ -12763,8 +12765,9 @@ Args:
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>path(str)</code></td>
+            <td><code>path</code></td>
             <td>
+                  <code>str</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -12772,7 +12775,7 @@ Args:
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>&#39;.&#39;</code>
             </td>
           </tr>
       </tbody>
@@ -12801,7 +12804,7 @@ Args:
 <span class="sd">    show the files in the given path</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        path(str): the path to render</span>
+<span class="sd">        path (str): the path to render</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">fullpath</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">scandir</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">fullpath</span><span class="p">):</span>
@@ -12860,8 +12863,8 @@ Args:
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">copy_right</span> <span class="o">=</span> <span class="s2">&quot;(c)2020-2024 Wolfgang Fahl&quot;</span>
     <span class="n">config</span> <span class="o">=</span> <span class="n">WebserverConfig</span><span class="p">(</span>
-        <span class="n">copy_right</span><span class="o">=</span><span class="n">copy_right</span><span class="p">,</span> 
-        <span class="n">version</span><span class="o">=</span><span class="n">Version</span><span class="p">(),</span> 
+        <span class="n">copy_right</span><span class="o">=</span><span class="n">copy_right</span><span class="p">,</span>
+        <span class="n">version</span><span class="o">=</span><span class="n">Version</span><span class="p">(),</span>
         <span class="n">default_port</span><span class="o">=</span><span class="mi">8334</span><span class="p">,</span>
         <span class="n">short_name</span><span class="o">=</span><span class="s2">&quot;scan2wiki&quot;</span><span class="p">,</span>
         <span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span>
@@ -13048,7 +13051,7 @@ Args:
 <span class="sd">        get a link to the given file</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            path(str) the path to the file</span>
+<span class="sd">            path (str) the path to the file</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            str: The html markup for the RESTFul API to show the file</span>
@@ -13090,10 +13093,10 @@ Args:
             <span class="n">scan_file</span><span class="p">[</span><span class="s2">&quot;#&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">index</span><span class="o">+</span><span class="mi">1</span>
         <span class="k">return</span> <span class="n">scan_files</span>
 
-    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span><span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Args:</span>
-<span class="sd">            path(str): the file to delete</span>
+<span class="sd">            path (str): the file to delete</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">fullpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_full_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
         <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fullpath</span><span class="p">)</span>
@@ -13202,8 +13205,9 @@ Args:
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code>path(str)</code></td>
+            <td><code>path</code></td>
             <td>
+                  <code>str</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -13225,10 +13229,10 @@ Args:
 <span class="normal">91</span>
 <span class="normal">92</span>
 <span class="normal">93</span>
-<span class="normal">94</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<span class="normal">94</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span><span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Args:</span>
-<span class="sd">        path(str): the file to delete</span>
+<span class="sd">        path (str): the file to delete</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">fullpath</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_full_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fullpath</span><span class="p">)</span>
@@ -13293,7 +13297,7 @@ Args:
 <span class="sd">    get a link to the given file</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        path(str) the path to the file</span>
+<span class="sd">        path (str) the path to the file</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        str: The html markup for the RESTFul API to show the file</span>
