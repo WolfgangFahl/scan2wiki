@@ -43,7 +43,7 @@ class Scans:
         get a link to the given file
 
         Args:
-            path(str) the path to the file
+            path (str) the path to the file
 
         Returns:
             str: The html markup for the RESTFul API to show the file
@@ -85,10 +85,10 @@ class Scans:
             scan_file["#"]=index+1
         return scan_files
 
-    def delete(self, path):
+    def delete(self, path:str):
         """
         Args:
-            path(str): the file to delete
+            path (str): the file to delete
         """
         fullpath = self.get_full_path(path)
         os.remove(fullpath)

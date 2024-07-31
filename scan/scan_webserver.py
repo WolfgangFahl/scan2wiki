@@ -39,8 +39,8 @@ class ScanWebServer(InputWebserver):
         """
         copy_right = "(c)2020-2024 Wolfgang Fahl"
         config = WebserverConfig(
-            copy_right=copy_right, 
-            version=Version(), 
+            copy_right=copy_right,
+            version=Version(),
             default_port=8334,
             short_name="scan2wiki",
             timeout=10.0
@@ -60,7 +60,7 @@ class ScanWebServer(InputWebserver):
         self.fm = FolderManager.getInstance()
         self.dm = DocumentManager.getInstance()
         self.archivesByName, _dup = self.am.getLookup("name")
-  
+
         @ui.page("/upload/{path:path}")
         async def upload(client: Client, path: str = None):
             return await self.page(
@@ -88,13 +88,13 @@ class ScanWebServer(InputWebserver):
         @app.get("/files/{path:path}")
         def files(path: str = "."):
             return self.files(path)
-        
+
     def files(self, path: str = "."):
         """
         show the files in the given path
 
         Args:
-            path(str): the path to render
+            path (str): the path to render
         """
         fullpath = f"{self.scandir}/{path}"
         if os.path.isdir(fullpath):
@@ -106,7 +106,7 @@ class ScanWebServer(InputWebserver):
         else:
             msg = f"invalid path: {path}"
             return HTMLResponse(content=msg, status_code=404)
-        
+
 class ScanSolution(InputWebSolution):
     """
     the Scan solution
