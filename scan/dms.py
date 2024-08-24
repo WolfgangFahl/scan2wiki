@@ -7,7 +7,7 @@ see http://diagrams.bitplan.com/render/png/0xe1f1d160.png
 see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 """
-
+import configparser
 import getpass
 import os
 import re
@@ -114,7 +114,13 @@ class DMSStorage:
 
     profile = True
     withShowProgress = True
-
+    
+    @classmethod
+    def get_config(cls):
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser('~/.dms/config.ini'))
+        return config
+    
     @staticmethod
     def getStorageConfig(debug: bool = False, mode="sql") -> StorageConfig:
         """
@@ -143,17 +149,16 @@ class DMSStorage:
             config.cacheFile = f"{cachedir}/dms.db"
         return config
 
-    @staticmethod
-    def getScanDir():
+    @classmethod
+    def getScanDir(cls):
         """
         get the scan/watch directory to be used
 
         Returns:
             str: the path to the scan directory
         """
-        home = str(Path.home())
-        scandir = f"{home}/Pictures/scans"
-        os.makedirs(scandir, exist_ok=True)
+        config=cls.get_config()
+        scandir = config.get('dms', 'scan_inbox')
         return scandir
 
     @staticmethod
