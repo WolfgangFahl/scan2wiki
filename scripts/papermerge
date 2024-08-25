@@ -60,11 +60,35 @@ usage() {
   echo "  -l, --logs             View Papermerge logs"
   echo "  -p, --port PORT        Set the port for Papermerge (default: 12000)"
   echo "  --sqlite-port PORT     Set the port for SQLite web interface (default: 8080)"
+  echo "  --sqlite-web           Start SQLite web interface"
   echo "  -s, --setup            Setup Papermerge Docker Compose configuration"
   echo "  -t, --token            Create a token for the user specified in .env"
   echo "  -u, --up               Start Papermerge services"
   echo "  -v, --version          Show version information"
   exit 1
+}
+
+#
+#  starter script for sqlite
+#
+create_sqlite_web_script() {
+  cat << EOF > "$pm_root/run_sqlite_web.sh"
+#!/bin/bash
+pip install sqlite-web
+sqlite_web --host 0.0.0.0 --port 8080 /db/db.sqlite3
+EOF
+  chmod +x "$pm_root/run_sqlite_web.sh"
+}
+
+#
+# run_sqlite_web script
+#
+run_sqlite_web() {
+  if [ ! -f "$pm_root/run_sqlite_web.sh" ]; then
+    create_sqlite_web_script
+  fi
+  docker cp "$pm_root/run_sqlite_web.sh" papermerge_web:/run_sqlite_web.sh
+  docker exec -it papermerge_web /run_sqlite_web.sh
 }
 
 # Function to setup Papermerge
@@ -101,10 +125,6 @@ services:
      - "\${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
     depends_on:
       - redis
-    command: >
-      bash -c "pip install sqlite-web &&
-               /entrypoint.sh &
-               python -m sqlite_web.sqlite_web --host 0.0.0.0 --port 8080 /db/db.sqlite3"
 
   worker:
     <<: *common
@@ -249,6 +269,10 @@ while [[ $# -gt 0 ]]; do
       else
         error "Error: Argument for $1 is missing"
       fi
+      ;;
+    --sqlite-web)
+      run_sqlite_web
+      action_performed=true
       ;;
     -s|--setup)
       setup_papermerge $force_setup
