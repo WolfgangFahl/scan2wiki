@@ -111,9 +111,7 @@ services:
     container_name: papermerge_redis
 
   sqlite_web:
-    #image: coleifer/sqlite-web
-    # fork with recursion fix
-    image: lxndrblz/sqlite-web:latest
+    image: coleifer/sqlite-web
     container_name: papermerge_sqlite_web
     environment:
       - SQLITE_DATABASE=/db/db.sqlite3
