@@ -4,33 +4,35 @@ Created on 2023-11-17
 @author: wf
 """
 from lodstorage.entity import EntityManager
-from lodstorage.jsonable import JSONAble
-from ngwidgets.lod_grid import ListOfDictsGrid
+from ngwidgets.lod_grid import ListOfDictsGrid, GridConfig
 from ngwidgets.widgets import Link
-
-
-class EntityView:
-    """ """
-
-    def __init__(self, entity: JSONAble):
-        """ """
-        self.entity = entity
-
+from nicegui import ui
 
 class EntityManagerView:
     """
     a view for a given entity manager
     """
 
-    def __init__(self, em: EntityManager):
+    def __init__(self, em: EntityManager,key_col:str="name",debug:bool=False):
         self.em = em
+        self.key_col=key_col
+        self.debug=debug
+        self.title = self.em.entityPluralName
         self.setup_view()
 
     def setup_view(self):
         """
         set up my view elements
         """
-        self.lod_grid = ListOfDictsGrid()
+        grid_config = GridConfig(
+            key_col=self.key_col,  # Adjust this to the appropriate key column for your data
+            editable=False,
+            multiselect=True,
+            with_buttons=False,
+            debug=self.debug
+        )
+        ui.label(self.title)
+        self.lod_grid = ListOfDictsGrid(config=grid_config)
 
     def linkColumn(self, name, record, formatWith=None, formatTitleWith=None):
         """
@@ -66,12 +68,10 @@ class EntityManagerView:
             lodKeys = ["url"]
         if lodKeyHandler is not None:
             lodKeyHandler(lodKeys)
-        tableHeaders = lodKeys
         dictList = [vars(d).copy() for d in records]
         if rowHandler is None:
             rowHandler = self.defaultRowHandler
         for row in dictList:
             rowHandler(row)
-        title = self.em.entityPluralName
         self.lod_grid.load_lod(dictList)
-        # return self.render_template(templateName=template,title=title,activeItem=title,dictList=dictList,lodKeys=lodKeys,tableHeaders=tableHeaders)
+        self.lod_grid.set_checkbox_selection(self.key_col)

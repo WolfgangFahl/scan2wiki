@@ -22,6 +22,7 @@ from scan.dms import (
     FolderManager,
 )
 from scan.entity_view import EntityManagerView
+from scan.dms_views import ArchiveView
 from scan.scans import Scans
 from scan.upload import UploadForm
 from scan.version import Version
@@ -59,7 +60,6 @@ class ScanWebServer(InputWebserver):
         self.am = ArchiveManager.getInstance()
         self.fm = FolderManager.getInstance()
         self.dm = DocumentManager.getInstance()
-        self.archivesByName, _dup = self.am.getLookup("name")
 
         @ui.page("/upload/{path:path}")
         async def upload(client: Client, path: str = None):
@@ -77,6 +77,12 @@ class ScanWebServer(InputWebserver):
         async def show_archives(client: Client):
             return await self.page(
                 client, ScanSolution.show_archives
+            )
+
+        @ui.page("/archive/{archive_id:str}")
+        async def show_archive(client: Client, archive_id: str):
+            return await self.page(
+                client, ScanSolution.show_archive, archive_id
             )
 
         @app.get("/delete/{path:path}")
@@ -172,6 +178,20 @@ class ScanSolution(InputWebSolution):
         except Exception as ex:
             self.handle_exception(ex)
 
+    async def show_archive(self, archive_id: str):
+        """
+        show the archive with the given id
+        """
+        def setup_show_archive():
+            archive = self.webserver.am.archives_by_name.get(archive_id)
+            if archive:
+                archive_view = ArchiveView(self,archive)
+                archive_view.show()
+            else:
+                ui.label(f"Archive with id {archive_id} not found")
+
+        await self.setup_content_div(setup_show_archive)
+
     async def show_archives(self):
         """
         show archives
@@ -181,8 +201,13 @@ class ScanSolution(InputWebSolution):
             """
             show the archives
             """
-            am_view = EntityManagerView(self.webserver.am)
-            am_view.show()
+            def row_handler(row):
+                # First, call the default row handler
+                am_view.defaultRowHandler(row)
+                # Then, add our custom link for the 'name' column
+                am_view.linkColumn("name", row, formatWith="/archive/%s", formatTitleWith="%s")
+            am_view = EntityManagerView(self.webserver.am,key_col="name")
+            am_view.show(rowHandler=row_handler)
 
         await self.setup_content_div(setup_show_archives)
 

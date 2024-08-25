@@ -7,7 +7,7 @@ see http://diagrams.bitplan.com/render/png/0xe1f1d160.png
 see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 """
-
+import logging
 import getpass
 import os
 import re
@@ -28,6 +28,7 @@ from wikibot3rd.wikiuser import WikiUser
 
 from scan.logger import Logger
 from scan.pdf import PDFMiner
+from networkx.tests.test_all_random_functions import progress
 
 
 class Wiki(object):
@@ -504,9 +505,11 @@ class Folder(JSONAble):
         documents = self.getDocuments(files)
         return documents
 
-    def getDocuments(self, files, withOcr=False):
+    def getDocuments(self, files, withOcr=False,progress_bar=None):
         """
         get the documents for this folder based on the files from my listdir
+        progress_bar(Progressbar): a progress bar to track progress
+
         """
         documentList = []
         msg = f"getting {len(files)} documents for {self.path}"
@@ -519,6 +522,9 @@ class Folder(JSONAble):
                     doc.url = f"http://{self.archive.server}{self.path}/{file}"
                     doc.fromFile(self.path, file, withOcr=withOcr)
                     documentList.append(doc)
+                    if progress_bar:
+                        progress_bar.total += 1
+                        progress_bar.update_value(progress_bar.value + 1)
             except Exception as e:
                 Logger.logException(e)
         return documentList
@@ -701,12 +707,16 @@ class Archive(JSONAble):
         nPageTitle = pageTitle.replace(" ", "_")
         return nPageTitle
 
-    def getFoldersAndDocuments(self, withOcr=False):
+    def getFoldersAndDocuments(self, withOcr=False, progress_bar=None):
         """
-        get the folders of this archive
+        get the folders and documents of this archive
 
-        Return:
-            the list of folders and files
+        Args:
+            withOcr(bool): whether to include OCR text
+            progress_bar(Progressbar): a progress bar to track progress
+
+        Returns:
+            dict: foldersByPath and documentList
         """
         foldersByPath = {}
         documentList = []
@@ -715,7 +725,7 @@ class Archive(JSONAble):
             smw = Wiki.getSMW(self.wikiid)
             for option in ["|format=count", ""]:
                 askQuery = (
-                    """{{#ask: [[Category:OCRDocument]]  
+                    """{{#ask: [[Category:OCRDocument]]
 | mainlabel=page
 | ?Category
 | ?Modification date=lastModified
@@ -769,6 +779,10 @@ class Archive(JSONAble):
                         doc.name = page
                         doc.url = f"{baseUrl}/{self.normalizePageTitle(page)}"
                         documentList.append(doc)
+                        if progress_bar:
+                            progress_bar.total += 1
+                            progress_bar.update_value(progress_bar.value + 1)
+
                     # collect folders
                     for folderName, count in folderCounter.most_common():
                         folder = Folder()
@@ -782,6 +796,9 @@ class Archive(JSONAble):
                         folder.url = f"{baseUrl}/Category:{folderName}"
                         folder.fileCount = count
                         foldersByPath[folderName] = folder
+                        if progress_bar:
+                            progress_bar.total += 1
+                            progress_bar.update_value(progress_bar.value + 1)
                         pass
         else:
             # this archive is pointing to a folder
@@ -805,10 +822,14 @@ class Archive(JSONAble):
                         folder.fileCount = len(pdfFiles)
                         folder.lastModified = DMSStorage.getDatetime(fullpath)
                         folder.created = folder.lastModified
-                        folderDocuments = folder.getDocuments(pdfFiles, withOcr=withOcr)
+                        folderDocuments = folder.getDocuments(pdfFiles, withOcr=withOcr, progress_bar=progress_bar)
                         # add the results
                         documentList.extend(folderDocuments)
                         foldersByPath[folder.path] = folder
+                        if progress_bar:
+                            progress_bar.total += 1
+                            progress_bar.update_value(progress_bar.value + 1)
+
             pass
         return foldersByPath, documentList
 
@@ -858,11 +879,24 @@ class ArchiveManager(EntityManager):
             am = ams
         else:
             am = ArchiveManager(mode)
+        am.archives_by_name, am.duplicate_archives = am.getLookup("name")
+
+        if am.duplicate_archives:
+            duplicate_names = [a.name for a in am.duplicate_archives[:5]]
+            names_str = ", ".join(duplicate_names)
+            warn_msg = f"Found {len(am.duplicate_archives)} archives with duplicate names. First 5 duplicates: {names_str}"
+            if len(am.duplicate_archives) > 5:
+                warn_msg += " ..."
+            logging.warning(warn_msg)
         return am
 
     @staticmethod
     def addFilesAndFoldersForArchive(
-        archive=None, withOcr=False, store=False, debug=True
+        archive=None,
+        withOcr=False,
+        progress_bar=None,
+        store=False,
+        debug=True
     ):
         """
         add Files and folder for the given Archive
@@ -870,6 +904,7 @@ class ArchiveManager(EntityManager):
         Args:
             archive(Archive): the archive to add files and folder for
             store(bool): True if the result should be stored in the storage
+            progress_bar(Progressbar): A Progressbar instance for tracking progress
             debug(bool): True if debugging messages should be displayed
         """
         if archive is None:
@@ -878,7 +913,7 @@ class ArchiveManager(EntityManager):
         msg = f"getting folders for {archive.name}"
         if debug:
             print(msg)
-        afoldersByPath, documentList = archive.getFoldersAndDocuments(withOcr=withOcr)
+        afoldersByPath, documentList = archive.getFoldersAndDocuments(withOcr=withOcr,progress_bar=progress_bar)
         folderCount = len(afoldersByPath)
         msg = f"found {folderCount} folders in {archive.name}"
         folders.extend(afoldersByPath.values())
