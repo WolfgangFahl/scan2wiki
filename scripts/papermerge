@@ -82,9 +82,8 @@ setup_papermerge() {
     mkdir -p "$pm_root"
   fi
 
-  cat << EOF > "$pm_compose"
+ cat << EOF > "$pm_compose"
 x-backend: &common
-  platform: linux/x86_64
   image: papermerge/papermerge:3.0.3
   env_file: .env
   volumes:
@@ -94,20 +93,22 @@ x-backend: &common
 
 services:
   web:
-  <<: *common
-  container_name: papermerge_web
-  ports:
-   - "${PAPERMERGE_PORT:-12000}:8000"
-   - "${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
-  depends_on:
-    - redis
-  command: >
-    bash -c "pip install sqlite-web &&
-             /entrypoint.sh &
-             sqlite_web --host 0.0.0.0 --port 8080 /db/db.sqlite3"
+    <<: *common
+    platform: linux/x86_64
+    container_name: papermerge_web
+    ports:
+     - "\${PAPERMERGE_PORT:-12000}:8000"
+     - "\${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
+    depends_on:
+      - redis
+    command: >
+      bash -c "pip install sqlite-web &&
+               /entrypoint.sh &
+               sqlite_web --host 0.0.0.0 --port 8080 /db/db.sqlite3"
 
   worker:
     <<: *common
+    platform: linux/x86_64
     container_name: papermerge_worker
     command: worker
 
