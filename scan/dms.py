@@ -28,8 +28,6 @@ from wikibot3rd.wikiuser import WikiUser
 
 from scan.logger import Logger
 from scan.pdf import PDFMiner
-from networkx.tests.test_all_random_functions import progress
-
 
 class Wiki(object):
     """
