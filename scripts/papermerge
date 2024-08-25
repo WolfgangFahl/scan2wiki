@@ -1,0 +1,303 @@
+#!/bin/bash
+# WF 2024-08-24
+# Setup and manage Papermerge using Docker Compose
+VERSION="0.0.6"
+pm_root=$HOME/.papermerge
+pm_compose=$pm_root/docker-compose.yml
+pm_env=$pm_root/.env
+
+# Color definitions
+blue='\033[0;34m'
+red='\033[0;31m'
+green='\033[0;32m'
+orange='\033[38;5;208m'  # This is a close approximation of orange
+yellow='\033[0;33m'
+endColor='\033[0m'
+
+# Function to display colored messages
+color_msg() {
+  local l_color="$1"
+  local l_msg="$2"
+  echo -e "${l_color}$l_msg${endColor}"
+}
+
+# Function to display errors
+error() {
+  local l_msg="$1"
+  color_msg $red "Error:" 1>&2
+  color_msg $red "\t$l_msg" 1>&2
+  exit 1
+}
+
+# Function to display warnings
+warning() {
+  local l_msg="$1"
+  color_msg $orange "⚠️:$l_msg"
+}
+
+# Function to display negative messages
+negative() {
+  local l_msg="$1"
+  color_msg $red "❌:$l_msg"
+}
+
+# Function to display positive messages
+positive() {
+  local l_msg="$1"
+  color_msg $green "✅:$l_msg"
+}
+
+# Function to display usage information
+usage() {
+  echo "Usage: $0 [OPTIONS]"
+  echo "Options:"
+  echo "  -b, --bash             Open a bash shell in the Papermerge container"
+  echo "  -c, --config           View current configuration"
+  echo "  -d, --debug            Enable debug mode"
+  echo "  -dn, --down            Stop Papermerge services"
+  echo "  -f, --force            Force setup even if configuration already exists"
+  echo "  -h, --help             Show this help message"
+  echo "  -l, --logs             View Papermerge logs"
+  echo "  -p, --port PORT        Set the port for Papermerge (default: 12000)"
+  echo "  --sqlite-port PORT     Set the port for SQLite web interface (default: 8080)"
+  echo "  --sqlite-web           Start SQLite web interface"
+  echo "  -s, --setup            Setup Papermerge Docker Compose configuration"
+  echo "  -t, --token            Create a token for the user specified in .env"
+  echo "  -u, --up               Start Papermerge services"
+  echo "  -v, --version          Show version information"
+  exit 1
+}
+
+#
+#  starter script for sqlite
+#
+create_sqlite_web_script() {
+  cat << EOF > "$pm_root/run_sqlite_web.sh"
+#!/bin/bash
+pip install sqlite-web
+sqlite_web --host 0.0.0.0 --port 8080 /db/db.sqlite3
+EOF
+  chmod +x "$pm_root/run_sqlite_web.sh"
+}
+
+#
+# run_sqlite_web script
+#
+run_sqlite_web() {
+  if [ ! -f "$pm_root/run_sqlite_web.sh" ]; then
+    create_sqlite_web_script
+  fi
+  docker cp "$pm_root/run_sqlite_web.sh" papermerge_web:/run_sqlite_web.sh
+  docker exec -it papermerge_web /run_sqlite_web.sh
+}
+
+# Function to setup Papermerge
+setup_papermerge() {
+  local force=$1
+
+  if [ -f "$pm_compose" ] && [ "$force" != "true" ]; then
+    warning "Papermerge configuration already exists."
+    warning "Use -f or --force option to override the existing setup."
+    return
+  fi
+
+  if [ ! -d "$pm_root" ]; then
+    color_msg $blue "Creating $pm_root"
+    mkdir -p "$pm_root"
+  fi
+
+ cat << EOF > "$pm_compose"
+x-backend: &common
+  image: papermerge/papermerge:3.0.3
+  env_file: .env
+  volumes:
+    - data:/db
+    - index_db:/core_app/index_db
+    - \${PAPERMERGE_MEDIA:-./media}:/core_app/media
+
+services:
+  web:
+    <<: *common
+    platform: linux/x86_64
+    container_name: papermerge_web
+    ports:
+     - "\${PAPERMERGE_PORT:-12000}:8000"
+     - "\${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
+    depends_on:
+      - redis
+
+  worker:
+    <<: *common
+    platform: linux/x86_64
+    container_name: papermerge_worker
+    command: worker
+
+  redis:
+    image: redis:6
+    container_name: papermerge_redis
+
+volumes:
+  data:
+  index_db:
+EOF
+
+  if [ ! -f "$pm_env" ]; then
+    warning ".env file not found. Creating a default .env file."
+    cat << EOF > "$pm_env"
+PAPERMERGE_PORT=12000
+PAPERMERGE_SQLITE_WEB_PORT=8080
+EOF
+  else
+    if ! grep -q "PAPERMERGE_PORT" "$pm_env"; then
+      echo "PAPERMERGE_PORT=12000" >> "$pm_env"
+    fi
+    if ! grep -q "PAPERMERGE_SQLITE_WEB_PORT" "$pm_env"; then
+      echo "PAPERMERGE_SQLITE_WEB_PORT=8080" >> "$pm_env"
+    fi
+  fi
+
+  positive "Papermerge Docker Compose configuration has been set up in $pm_root"
+}
+
+# Function to set a port in the .env file
+set_port() {
+  local port_name=$1
+  local port_value=$2
+  if [ -f "$pm_env" ]; then
+    sed -i "/^${port_name}=/d" "$pm_env"
+  fi
+  echo "${port_name}=${port_value}" >> "$pm_env"
+  positive "${port_name} set to ${port_value}"
+}
+
+# Function to start Papermerge services
+start_services() {
+  if [ ! -f "$pm_env" ]; then
+    error ".env file not found. Please create $pm_env with the necessary environment variables."
+  fi
+  cd "$pm_root" && docker compose up -d
+  positive "Papermerge services started"
+}
+
+# Function to stop Papermerge services
+stop_services() {
+  cd "$pm_root" && docker compose down
+  positive "Papermerge services stopped"
+}
+
+# Function to view Papermerge logs
+view_logs() {
+  cd "$pm_root" && docker compose logs -f
+}
+
+# Function to view current configuration
+view_config() {
+  if [ -f "$pm_compose" ]; then
+    cat "$pm_compose"
+  else
+    negative "docker-compose.yml not found. Please run setup first."
+  fi
+}
+
+# Function to open a bash shell in the Papermerge container
+open_bash() {
+  docker exec -it papermerge_web /bin/bash
+}
+
+# Function to create a token for the user specified in .env
+create_token() {
+  if [ ! -f "$pm_env" ]; then
+    error ".env file not found. Please create $pm_env with the necessary environment variables."
+  fi
+
+  # Read the PAPERMERGE__AUTH__USERNAME variable from .env file
+  source "$pm_env"
+  if [ -z "$PAPERMERGE__AUTH__USERNAME" ]; then
+    error "PAPERMERGE__AUTH__USERNAME not found in .env file. Please specify the username."
+  fi
+
+  docker exec papermerge_web create_token.sh "$PAPERMERGE__AUTH__USERNAME"
+  positive "Token created for user $PAPERMERGE__AUTH__USERNAME"
+}
+
+# Initialize flags
+action_performed=false
+force_setup=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -b|--bash)
+      open_bash
+      action_performed=true
+      ;;
+    -c|--config)
+      view_config
+      action_performed=true
+      ;;
+    -d|--debug)
+      set -x
+      ;;
+    -dn|--down)
+      stop_services
+      action_performed=true
+      ;;
+    -f|--force)
+      force_setup=true
+      ;;
+    -h|--help)
+      usage
+      ;;
+    -l|--logs)
+      view_logs
+      action_performed=true
+      ;;
+    -p|--port)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        set_port "PAPERMERGE_PORT" "$2"
+        shift
+        action_performed=true
+      else
+        error "Error: Argument for $1 is missing"
+      fi
+      ;;
+    --sqlite-port)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        set_port "PAPERMERGE_SQLITE_WEB_PORT" "$2"
+        shift
+        action_performed=true
+      else
+        error "Error: Argument for $1 is missing"
+      fi
+      ;;
+    --sqlite-web)
+      run_sqlite_web
+      action_performed=true
+      ;;
+    -s|--setup)
+      setup_papermerge $force_setup
+      action_performed=true
+      ;;
+    -t|--token)
+      create_token
+      action_performed=true
+      ;;
+    -u|--up)
+      start_services
+      action_performed=true
+      ;;
+    -v|--version)
+      echo "Version: $VERSION"
+      action_performed=true
+      ;;
+    *)
+      error "Unknown option: $1"
+      ;;
+  esac
+  shift
+done
+
+# If no action was performed, show usage
+if [ "$action_performed" = false ]; then
+  usage
+fi
