@@ -115,13 +115,13 @@ class DMSStorage:
 
     profile = True
     withShowProgress = True
-    
+
     @classmethod
     def get_config(cls):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser('~/.dms/config.ini'))
         return config
-    
+
     @staticmethod
     def getStorageConfig(debug: bool = False, mode="sql") -> StorageConfig:
         """

@@ -29,12 +29,13 @@ class ArchiveView(EntityView):
 
     def show(self):
         self.archive=self.entity
-        self.progress_bar = NiceguiProgressbar(
-                total=100, desc="folders and files", unit="%"
-        )
+        with  ui.row() as self.progress_row:
+            self.progress_bar = NiceguiProgressbar(
+                    total=100, desc="folders and files", unit="%"
+            )
         ui.label(f"Archive: {self.archive.name}").classes('text-h4')
         self.scan_button = (
-            ui.button("Collect", icon="scanner", color="primary")
+            ui.button("Collect", icon="folder-star", color="primary")
             .tooltip("Start collecting folders and files for this archive")
             .on("click", handler=self.on_collect)
         )
@@ -58,6 +59,8 @@ class ArchiveView(EntityView):
         self.solution.webserver.dm.getInstance()
 
         # Start the scanning process
-        am.addFilesAndFoldersForArchive(self.archive, progress_bar=self.progress_bar,store=True)
+        with self.progress_row:
+            ui.notify(f"collecting files and folders for {self.archive.name}")
+            am.addFilesAndFoldersForArchive(self.archive, progress_bar=self.progress_bar,store=True)
 
-        ui.notify(f"Collection completed for archive: {self.archive.name}")
+            ui.notify(f"Collection completed for archive: {self.archive.name}")
