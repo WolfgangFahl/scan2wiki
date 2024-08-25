@@ -111,14 +111,17 @@ services:
     container_name: papermerge_redis
 
   sqlite_web:
-    image: coleifer/sqlite-web
+    #image: coleifer/sqlite-web
+    # fork with recursion fix
+    image: lxndrblz/sqlite-web:latest
     container_name: papermerge_sqlite_web
     environment:
       - SQLITE_DATABASE=/db/db.sqlite3
+      - PYTHON_RECURSION_LIMIT=3000
     volumes:
       - data:/db
     ports:
-      - "\${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
+      - "${PAPERMERGE_SQLITE_WEB_PORT:-8080}:8080"
     command: sqlite_web --host 0.0.0.0 /db/db.sqlite3
 
 volumes:
