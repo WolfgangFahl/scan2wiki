@@ -234,10 +234,11 @@ class ScanSolution(InputWebSolution):
                 key_col=self.key_col,
                 editable=True,
                 multiselect=True,
-                with_buttons=True,
+                with_buttons=False,
                 debug=self.args.debug
             )
             self.lod_grid = ListOfDictsGrid(config=grid_config)
+            self.lod_grid.setup_button_row(["all","fit"])
             with self.lod_grid.button_row:
                 self.work_button = ui.button("work", on_click=self.on_work_click)
 
