@@ -9,7 +9,7 @@ import sys
 
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
-from ngwidgets.lod_grid import ListOfDictsGrid
+from ngwidgets.lod_grid import ListOfDictsGrid, GridConfig
 from ngwidgets.webserver import WebserverConfig
 from nicegui import Client, app, ui
 from wikibot3rd.wikiuser import WikiUser
@@ -175,6 +175,7 @@ class ScanSolution(InputWebSolution):
             lod = self.webserver.scans.get_scan_files()
             self.lod_grid.load_lod(lod)
             self.lod_grid.sizeColumnsToFit()
+            self.lod_grid.set_checkbox_selection(self.key_col)
         except Exception as ex:
             self.handle_exception(ex)
 
@@ -225,7 +226,15 @@ class ScanSolution(InputWebSolution):
         """
 
         def setup_home():
-            self.lod_grid = ListOfDictsGrid()
+            self.key_col="#"
+            grid_config = GridConfig(
+                key_col=self.key_col,
+                editable=False,
+                multiselect=True,
+                with_buttons=True,
+                debug=self.args.debug
+            )
+            self.lod_grid = ListOfDictsGrid(config=grid_config)
             self.update_scans()
 
         await (self.setup_content_div(setup_home))

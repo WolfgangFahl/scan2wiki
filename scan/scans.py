@@ -63,7 +63,8 @@ class Scans:
         scan_files = []
         for index, path in enumerate(os.listdir(self.scandir)):
             try:
-                if path.startswith('._'):
+                # ignore .smbdelete and similar files
+                if path.startswith('.' ):
                     continue
                 fullpath = self.get_full_path(path)
                 ftime = datetime.fromtimestamp(os.path.getmtime(fullpath))

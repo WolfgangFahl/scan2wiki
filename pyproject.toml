@@ -21,7 +21,7 @@ readme = "README.md"
 license = {text = "Apache-2.0"}
 dependencies = [
 	# https://github.com/WolfgangFahl/nicegui_widgets
-	"ngwidgets>=0.17.2",
+	"ngwidgets>=0.17.3",
 	# https://pypi.org/project/dataclasses-json/
 	"dataclasses-json>=0.6.1",
 	# Mediawiki and SMW API
