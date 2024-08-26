@@ -220,6 +220,9 @@ class ScanSolution(InputWebSolution):
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 
+    async def on_work_click(self):
+        ui.notify("work requested")
+
     async def home(self):
         """
         provide the main content page
@@ -229,12 +232,15 @@ class ScanSolution(InputWebSolution):
             self.key_col="#"
             grid_config = GridConfig(
                 key_col=self.key_col,
-                editable=False,
+                editable=True,
                 multiselect=True,
                 with_buttons=True,
                 debug=self.args.debug
             )
             self.lod_grid = ListOfDictsGrid(config=grid_config)
+            with self.lod_grid.button_row:
+                self.work_button = ui.button("work", on_click=self.on_work_click)
+
             self.update_scans()
 
         await (self.setup_content_div(setup_home))

@@ -71,11 +71,16 @@ class Scans:
                 ftimestr = ftime.strftime("%Y-%m-%d %H:%M:%S")
                 size = os.path.getsize(fullpath)
                 _file_url, file_link = self.get_file_link(path)
+                current_date = datetime.now()
                 scan_file = {
                     "#": index + 1,
                     "name": file_link,
                     "lastModified": ftimestr,
                     "size": size,
+                    "pagetitle": "",
+                    "wiki": "scan",
+                    "categories": str(current_date.year),
+                    "topic": "OCRDocument",
                     "delete": Link.create(url=f"/delete/{path}", text="❌"),
                     "upload": Link.create(url=f"/upload/{path}", text="⇧"),
                 }
