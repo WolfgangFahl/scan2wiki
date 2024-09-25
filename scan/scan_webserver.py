@@ -207,6 +207,7 @@ class ScanSolution(InputWebSolution):
                 am_view.defaultRowHandler(row)
                 # Then, add our custom link for the 'name' column
                 am_view.linkColumn("name", row, formatWith="/archive/%s", formatTitleWith="%s")
+
             am_view = EntityManagerView(self.webserver.am,key_col="name")
             am_view.show(rowHandler=row_handler)
 

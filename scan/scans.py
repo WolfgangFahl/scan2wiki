@@ -76,13 +76,13 @@ class Scans:
                     "#": index + 1,
                     "name": file_link,
                     "lastModified": ftimestr,
+                    "delete": Link.create(url=f"/delete/{path}", text="❌"),
+                    "upload": Link.create(url=f"/upload/{path}", text="⇧"),
                     "size": size,
                     "pagetitle": "",
                     "wiki": "scan",
                     "categories": str(current_date.year),
                     "topic": "OCRDocument",
-                    "delete": Link.create(url=f"/delete/{path}", text="❌"),
-                    "upload": Link.create(url=f"/upload/{path}", text="⇧"),
                 }
                 scan_files.append(scan_file)
             except Exception as ex:
