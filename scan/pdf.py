@@ -4,7 +4,6 @@
 from io import StringIO
 
 from pdfminer.converter import TextConverter
-from pdfminer.high_level import extract_text
 from pdfminer.layout import LAParams
 from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager

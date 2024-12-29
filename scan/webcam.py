@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
-from nicegui import ui
+from nicegui import ui, background_tasks
 
 from scan.amazon import Amazon
 from scan.barcode import Barcode
@@ -21,16 +21,16 @@ class WebcamForm:
     allow scanning pictures from a webcam
     """
 
-    def __init__(self, webserver, default_url: str):
+    def __init__(self, solution, default_url: str):
         """
         construct me
         """
-        self.webserver = webserver
-        self.scandir = webserver.scandir
+        self.solution=solution
+        self.scandir = solution.webserver.scandir
         self.url = default_url
         self.shot_url = f"{self.url}/shot.jpg"
         self.image_path = None
-        self.amazon = Amazon(self.webserver.debug)
+        self.amazon = Amazon(self.solution.args.debug)
         self.product = None
         self.gtin = None
         self.products = Products()  # Initialize the Products instance
@@ -39,18 +39,24 @@ class WebcamForm:
         self.update_product_grid()
 
     def notify(self, msg):
-        ui.notify(msg)
-        if self.webserver.log_view:
-            self.webserver.log_view.push(msg)
+        with self.preview_row:
+            ui.notify(msg)
+        if self.solution.log_view:
+            self.solution.log_view.push(msg)
 
     async def run_scan(self):
         """
         Start the scan process in the background.
         """
-        _, scan_coro = self.task_handler.execute_in_background(self.save_webcam_shot)
-        self.image_path, msg = await scan_coro()
-        self.notify(msg)
-        self.update_preview(self.image_path)
+        background_tasks.create(self.perform_webcam_shot())
+
+    async def perform_webcam_shot(self):
+        try:
+            self.image_path, msg = self.save_webcam_shot()
+            self.notify(msg)
+            self.update_preview(self.image_path)
+        except Exception as ex:
+            self.solution.handle_exception(ex)
 
     def save_webcam_shot(self) -> str:
         """
@@ -60,8 +66,9 @@ class WebcamForm:
             str: The file name of the saved webcam image, or an error message if the fetch failed.
         """
         image_file_name = None
+        msg="?"
         try:
-            shot_url = f"{self.url}/shot.jpg"
+            shot_url = f"{self.url}"
             response = requests.get(shot_url)
             if response.status_code == 200:
                 # Ensure the scandir directory exists
@@ -81,7 +88,7 @@ class WebcamForm:
                 image_file_name = ""
 
         except Exception as ex:
-            self.webserver.handle_exception(ex)
+            self.solution.handle_exception(ex)
 
         return image_file_name, msg
 
@@ -90,17 +97,19 @@ class WebcamForm:
         Setup the webcam form
         """
         # Button to refresh or scan the video stream
-        self.scan_button = ui.button("Scan", on_click=self.run_scan)
-        self.barcode_button = ui.button("Barcode", on_click=self.scan_barcode)
-        self.lookup_button = ui.button("Lookup", on_click=self.lookup_gtin)
-        self.add_button = ui.button("add", on_click=self.add_product)
-        self.webcam_input = ui.input(value=self.url)
-        self.image_link = ui.html().style(Link.blue)
-        self.gtin_input = ui.input("gtin", value=self.gtin).bind_value(self, "gtin")
-        self.barcode_results = ui.html("")
-        self.product_grid = ListOfDictsGrid()
-        # HTML container for the webcam snap shot
-        self.preview = ui.html()
+        with ui.row() as self.button_row:
+            self.scan_button = ui.button("Scan", on_click=self.run_scan)
+            self.barcode_button = ui.button("Barcode", on_click=self.scan_barcode)
+            self.lookup_button = ui.button("Lookup", on_click=self.lookup_gtin)
+            self.add_button = ui.button("add", on_click=self.add_product)
+        with ui.row() as self.preview_row:
+            self.webcam_input = ui.input(value=self.url)
+            self.image_link = ui.html().style(Link.blue)
+            self.gtin_input = ui.input("gtin", value=self.gtin).bind_value(self, "gtin")
+            self.barcode_results = ui.html("")
+            self.product_grid = ListOfDictsGrid()
+                # HTML container for the webcam snap shot
+            self.preview = ui.html()
 
     def update_product_grid(self):
         """
@@ -158,16 +167,20 @@ class WebcamForm:
                 msg = "No image to scan for barcodes."
             self.notify(msg)
         except Exception as ex:
-            self.webserver.handle_exception(ex)
+            self.solution.handle_exception(ex)
 
     def update_preview(self, image_path: str = None):
         """
         Update the preview with the current URL of the webcam.
         """
-        if image_path:
-            url = f"/files/{image_path}"
-            html_markup = f"""<img src="{url}" style="width: 100%; height: auto;" />"""
-            self.image_link.content = Link.create(url, image_path)
-            self.preview.content = html_markup
-        else:
-            self.preview.content = "Loading..."
+        try:
+            with self.preview_row:
+                if image_path:
+                    url = f"/files/{image_path}"
+                    html_markup = f"""<img src="{url}" style="width: 100%; height: auto;" />"""
+                    self.image_link.content = Link.create(url, image_path)
+                    self.preview.content = html_markup
+                else:
+                    self.preview.content = "Loading..."
+        except Exception as ex:
+            self.solution.handle_exception(ex)

@@ -217,7 +217,9 @@ class ScanSolution(InputWebSolution):
         """
         configure additional non-standard menu entries
         """
-        self.link_button(name="Webcam", icon_name="photo_camera", target="/webcam")
+        self.webcam_button=self.link_button(name="Webcam", icon_name="photo_camera", target="/webcam")
+        if self.args.webcam is None:
+            self.webcam_button.button.disable()
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 
