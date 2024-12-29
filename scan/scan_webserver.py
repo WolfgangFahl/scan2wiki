@@ -26,7 +26,7 @@ from scan.dms_views import ArchiveView
 from scan.scans import Scans
 from scan.upload import UploadForm
 from scan.version import Version
-from scan.webcam import WebcamForm
+from scan.webcam import ProductWebcamForm, AIWebcamForm
 
 class ScanWebServer(InputWebserver):
     """
@@ -67,10 +67,16 @@ class ScanWebServer(InputWebserver):
                 client, ScanSolution.upload,path
             )
 
-        @ui.page("/webcam")
-        async def webcam(client: Client):
+        @ui.page("/ai-webcam")
+        async def aiwebcam(client: Client):
             return await self.page(
-                client, ScanSolution.webcam
+                client, ScanSolution.aiwebcam
+            )
+
+        @ui.page("/barcode-webcam")
+        async def barcodewebcam(client: Client):
+            return await self.page(
+                client, ScanSolution.barcodewebcam
             )
 
         @ui.page("/archives")
@@ -142,9 +148,15 @@ class ScanSolution(InputWebSolution):
             log_classes="w-full h-20",
         )
 
-    async def webcam(self):
+    async def aiwebcam(self):
         def setup_webcam():
-            self.webcam_form = WebcamForm(self, self.args.webcam)
+            self.webcam_form = AIWebcamForm(self, self.args.webcam)
+
+        await self.setup_content_div(setup_webcam)
+
+    async def barcodewebcam(self):
+        def setup_webcam():
+            self.webcam_form = ProductWebcamForm(self, self.args.webcam)
 
         await self.setup_content_div(setup_webcam)
 
@@ -217,9 +229,10 @@ class ScanSolution(InputWebSolution):
         """
         configure additional non-standard menu entries
         """
-        self.webcam_button=self.link_button(name="Webcam", icon_name="photo_camera", target="/webcam")
+        self.webcam_button=self.link_button(name="AI Webcam", icon_name="photo_camera", target="/ai-webcam")
         if self.args.webcam is None:
             self.webcam_button.button.disable()
+        self.webcam_button=self.link_button(name="Barcode Webcam", icon_name="barcode", target="/barcode-webcam")
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 

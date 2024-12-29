@@ -36,6 +36,7 @@ class ScanCmd(WebserverCmd):
         parser.add_argument(
             "-wc", "--webcam", help="url of webcam for scans [default: %(default)s]"
         )
+        parser.add_argument("--web-host", default="z", help="Web server hostname or IP.")
         return parser
 
 
