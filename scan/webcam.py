@@ -343,16 +343,10 @@ class AIWebcamForm(BaseWebcamForm):
             url = self.get_public_url(os.path.basename(image_path))
             if url:
                 markup = self.llm.analyze_image(url, auth, prompt)
+                self.show_markup(markup, with_notify=False)
             else:
-                # Handle local file analysis
-                with open(image_path, "rb") as image_file:
-                    image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
-                    markup = self.llm.analyze_image(
-                        f"data:image/jpeg;base64,{image_base64}",
-                        auth,
-                        prompt
-                    )
-            self.show_markup(markup, with_notify=False)
+                msg = "Error: Unable to get public URL for image analysis"
+                self.show_markup(msg)
 
         except Exception as ex:
             self.solution.handle_exception(ex)
