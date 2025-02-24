@@ -21,14 +21,14 @@ readme = "README.md"
 license = {text = "Apache-2.0"}
 dependencies = [
 	# https://github.com/WolfgangFahl/nicegui_widgets
-	"ngwidgets>=0.20.5",
+	"ngwidgets>=0.22.1",
 	# https://pypi.org/project/dataclasses-json/
 	"dataclasses-json>=0.6.1",
 	# Mediawiki and SMW API
 	# https://pypi.org/project/py-3rdparty-mediawiki/
-    'py-3rdparty-mediawiki>=0.12.1',
+    'py-3rdparty-mediawiki>=0.14.7',
 	# https://pypi.org/project/pylodstorage/
-	"pylodstorage>=0.12.2",
+	"pylodstorage>=0.14.3",
 	# https://github.com/claird/PyPDF4
 	# https://pypi.org/project/PyPDF2/
 	# issue https://github.com/sfneal/PyPDF3/issues/13

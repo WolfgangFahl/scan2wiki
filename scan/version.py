@@ -16,9 +16,9 @@ class Version(object):
 
     name = "scan2wiki"
     version = scan.__version__
-    description = "Scan to Wiki by watching a scan folder"
+    description = "Semantified Document Management System"
     date = "2021-12-20"
-    updated = "2024-02-22"
+    updated = "2025-02-24"
 
     authors = "Wolfgang Fahl"
 
@@ -26,7 +26,7 @@ class Version(object):
     chat_url = "https://github.com/WolfgangFahl/scan2wiki/discussions"
     cm_url = "https://github.com/WolfgangFahl/scan2wiki"
 
-    license = f"""Copyright 2023 contributors. All rights reserved.
+    license = f"""Copyright 2023-2025 contributors. All rights reserved.
 
   Licensed under the Apache License 2.0
   http://www.apache.org/licenses/LICENSE-2.0

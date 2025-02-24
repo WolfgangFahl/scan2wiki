@@ -38,7 +38,7 @@ class ScanWebServer(InputWebserver):
         """
         get the configuration for this Webserver
         """
-        copy_right = "(c)2020-2024 Wolfgang Fahl"
+        copy_right = "(c)2020-2025 Wolfgang Fahl"
         config = WebserverConfig(
             copy_right=copy_right,
             version=Version(),
@@ -229,10 +229,11 @@ class ScanSolution(InputWebSolution):
         """
         configure additional non-standard menu entries
         """
-        self.webcam_button=self.link_button(name="AI Webcam", icon_name="photo_camera", target="/ai-webcam")
+        # https://fonts.google.com/icons?icon.set=Material+Icons
+        self.webcam_button=self.link_button(name="AI Cam", icon_name="photo_camera", target="/ai-webcam")
         if self.args.webcam is None:
             self.webcam_button.button.disable()
-        self.webcam_button=self.link_button(name="Barcode Webcam", icon_name="barcode", target="/barcode-webcam")
+        self.webcam_button=self.link_button(name="Barcode Cam", icon_name="qr_code_2", target="/barcode-webcam")
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 

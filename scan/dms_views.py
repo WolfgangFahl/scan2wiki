@@ -5,7 +5,8 @@ Created on 2024-08-25
 """
 from lodstorage.jsonable import JSONAble
 from nicegui import ui, run
-from ngwidgets.progress import Progressbar, NiceguiProgressbar
+from ngwidgets.progress import  NiceguiProgressbar
+from ngwidgets.widgets import Link
 #from ngwidgets.lod_grid import ListOfDictsGrid
 
 class EntityView:
@@ -26,16 +27,23 @@ class ArchiveView(EntityView):
 
     def __init__(self, solution, archive: JSONAble):
         super().__init__(solution, archive)
+        self.am = self.solution.webserver.am
 
     def show(self):
+        """
+        show the given archive
+        """
         self.archive=self.entity
         with  ui.row() as self.progress_row:
             self.progress_bar = NiceguiProgressbar(
                     total=100, desc="folders and files", unit="%"
             )
-        ui.label(f"Archive: {self.archive.name}").classes('text-h4')
+        link=Link.create(url=self.archive.url,text=self.archive.name)
+        markup=f"{link}"
+        self.overview=ui.html(markup)
+        # https://fonts.google.com/icons?icon.set=Material+Icons
         self.scan_button = (
-            ui.button("Collect", icon="folder-star", color="primary")
+            ui.button("Collect", icon="folder_special", color="primary")
             .tooltip("Start collecting folders and files for this archive")
             .on("click", handler=self.on_collect)
         )
@@ -53,7 +61,6 @@ class ArchiveView(EntityView):
         """
         Perform the actual collection process.
         """
-        am = self.solution.webserver.am
         # Prepare managers
         self.solution.webserver.fm.getInstance()
         self.solution.webserver.dm.getInstance()
@@ -61,6 +68,6 @@ class ArchiveView(EntityView):
         # Start the scanning process
         with self.progress_row:
             ui.notify(f"collecting files and folders for {self.archive.name}")
-            am.addFilesAndFoldersForArchive(self.archive, progress_bar=self.progress_bar,store=True)
+            self.am.addFilesAndFoldersForArchive(self.archive, progress_bar=self.progress_bar,store=True)
 
             ui.notify(f"Collection completed for archive: {self.archive.name}")
