@@ -136,6 +136,7 @@ class ScanSolution(InputWebSolution):
         super().__init__(webserver, client)  # Call to the superclass constructor
         self.stdout_handler = logging.StreamHandler(stream=sys.stdout)
         self.stderr_handler = logging.StreamHandler(stream=sys.stderr)
+        self.lod=[]
 
     async def setup_footer(self):
         """
@@ -184,8 +185,8 @@ class ScanSolution(InputWebSolution):
         update the scans grid
         """
         try:
-            lod = self.webserver.scans.get_scan_files()
-            self.lod_grid.load_lod(lod)
+            self.lod = self.webserver.scans.get_scan_files()
+            self.lod_grid.load_lod(self.lod)
             self.lod_grid.sizeColumnsToFit()
             self.lod_grid.set_checkbox_selection(self.key_col)
         except Exception as ex:
@@ -237,8 +238,22 @@ class ScanSolution(InputWebSolution):
         self.link_button(name="Archives", icon_name="database", target="/archives")
         pass
 
+    async def get_selected_lod(self):
+        lod_index=self.lod_grid.get_index(lenient=self.lod_grid.config.lenient,lod=self.lod)
+        lod = await self.lod_grid.get_selected_lod(lod_index=lod_index)
+        if len(lod)==0:
+            with self.lod_grid.button_row:
+                ui.notify("Please select at least one row")
+        return lod
+
+
     async def on_work_click(self):
-        ui.notify("work requested")
+        """
+        work on the given documents
+        """
+        selected_lod=await self.get_selected_lod()
+        row_count=len(selected_lod)
+        ui.notify(f"work requested for {row_count} documents")
 
     async def home(self):
         """

@@ -293,10 +293,24 @@ class Document(JSONAble):
             delim = ","
         return text
 
-    def getPDFText(self):
+    def getPDFText(self) -> str:
+        """Gets text content from PDF, using cached text file if available.
+
+        First checks for an existing .txt file with the same base name as the PDF.
+        If found, returns its contents. Otherwise, extracts text from the PDF file.
+
+        Returns:
+            str: The text content of the PDF, or None if not a PDF file.
         """
-        get my PDF Text
-        """
+        # Check if a corresponding .txt cache file exists (using regex)
+        txt_cache_path = re.sub(r'\.pdf$', '.txt', self.fullpath, flags=re.IGNORECASE)
+
+
+        # If cache file exists, use it instead of parsing PDF again
+        if os.path.exists(txt_cache_path):
+            return self.readTextFromFile(txt_cache_path)
+
+        # Otherwise, process the PDF as before
         pdfText = None
         if self.fullpath.lower().endswith(".pdf"):
             pdfText = PDFMiner.getPDFText(self.fullpath)

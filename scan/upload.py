@@ -7,7 +7,7 @@ import logging
 import time
 from collections import Counter
 from datetime import datetime
-
+from dataclasses import dataclass
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
 from nicegui import ui, run
@@ -90,7 +90,7 @@ class UploadForm:
         self.wiki_users = wiki_users
         self.path = path
         self.doc = Document()
-        self.doc.fromFile(folderPath=self.scandir, file=path, local=True, withOcr=False)
+        self.doc.fromFile(folderPath=self.scandir, file=path, local=True, withOcr=True)
         self.setup_form()
         self.upload_log_filter = UploadLogFilter(self.progressbar)
         self.webserver.logger.addHandler(self.solution.stdout_handler)
