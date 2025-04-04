@@ -316,6 +316,25 @@ class Document(JSONAble):
             pdfText = PDFMiner.getPDFText(self.fullpath)
         return pdfText
 
+    def get_text_head(self, max_lines: int = 9) -> str:
+        """
+        Get the first few lines of the document's text content.
+
+        Args:
+            max_lines: Maximum number of lines to return
+
+        Returns:
+            String with the first few lines of text
+        """
+        if not self.ocrText:
+            self.getOcrText()
+
+        if self.ocrText:
+            lines = self.ocrText.split('\n')
+            return '\n'.join(lines[:max_lines] if len(lines) >= max_lines else lines)
+
+        return ""
+
     def readTextFromFile(self, fileName: str) -> str:
         """
         read text from the given fileName
