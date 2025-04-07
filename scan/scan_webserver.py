@@ -273,7 +273,10 @@ class ScanSolution(InputWebSolution):
             self.lod_grid = ListOfDictsGrid(config=grid_config)
             with self.lod_grid.button_row:
                 self.work_button = ui.button("work", on_click=self.on_work_click)
-
-            self.update_scans()
+                self.workoptions = {"ocr": False, "job": False, "upload": False, "auto": False}
+                for option in self.workoptions:
+                    checkbox=ui.checkbox(option.capitalize())
+                    checkbox.bind_value_to(self.workoptions, option)
+                self.update_scans()
 
         await (self.setup_content_div(setup_home))

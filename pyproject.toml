@@ -37,7 +37,10 @@ dependencies = [
 	# PyPDF3
 	# https://pypi.org/project/pdfminer/
 	# https://github.com/pdfminer/pdfminer.six
-	"pdfminer.six",
+	# "pdfminer.six",
+	# https://github.com/pymupdf/pymupdf
+	# https://pypi.org/project/PyMuPDF/
+	"PyMuPDF>=1.25.5",
 	# https://pypi.org/project/watchdog/
 	"watchdog",
 	# https://pypi.org/project/APScheduler/

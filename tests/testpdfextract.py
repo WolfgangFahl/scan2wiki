@@ -7,7 +7,7 @@ from ngwidgets.basetest import Basetest
 
 from scan.dms import Document
 from scan.scan_webserver import ScanSolution
-
+from scan.pdf import PDFExtractor
 
 class TestPDFExtract(Basetest):
     """
@@ -17,7 +17,7 @@ class TestPDFExtract(Basetest):
     def setUp(self):
         Basetest.setUp(self)
         self.testdata = ScanSolution.examples_path()
-        # self.debug=True
+        self.debug=False
         pass
 
     def testPDFExtract(self):
@@ -34,15 +34,16 @@ class TestPDFExtract(Basetest):
             doc = Document()
             doc.fromFile(self.testdata, testFile, withOcr=True, local=True)
             pdfText = doc.getOcrText()
-            if testFile in expected:
-                if self.debug:
-                    print(str(doc))
-                    print(pdfText)
-                exContentList = expected[testFile]
-                if exContentList is None:
-                    self.assertIsNone(pdfText)
-                else:
-                    for exContent in exContentList:
-                        self.assertTrue(exContent in pdfText, testFile)
+            pdf_text_extracted=PDFExtractor.getPDFText(doc.fullpath,useCache=False)
+            if self.debug:
+                print(str(doc))
+                print(pdfText)
+            exContentList = expected[testFile]
+            if exContentList is None:
+                self.assertIsNone(pdfText)
+            else:
+                for exContent in exContentList:
+                    self.assertTrue(exContent in pdfText, testFile)
+                self.assertEqual(pdfText,pdf_text_extracted)
 
         pass

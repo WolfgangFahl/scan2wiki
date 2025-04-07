@@ -21,6 +21,7 @@ from pathlib import Path
 from bs4 import UnicodeDammit
 from lodstorage.entity import EntityManager
 from lodstorage.jsonable import JSONAble
+from lodstorage.yamlable import lod_storable
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
 from wikibot3rd.smw import SMWClient
@@ -29,7 +30,7 @@ from wikibot3rd.wikipush import WikiPush
 from wikibot3rd.wikiuser import WikiUser
 
 from scan.logger import Logger
-from scan.pdf import PDFMiner
+from scan.pdf import PDFExtractor
 
 class Wiki(object):
     """
@@ -211,7 +212,6 @@ class DMSStorage:
                 sqlDB = DMSStorage.getSqlDB()
                 em.initSQLDB(sqlDB)
 
-
 class Document(JSONAble):
     """
     a document consist of one or more files in the filesystem
@@ -302,19 +302,12 @@ class Document(JSONAble):
         Returns:
             str: The text content of the PDF, or None if not a PDF file.
         """
-        # Check if a corresponding .txt cache file exists (using regex)
-        txt_cache_path = re.sub(r'\.pdf$', '.txt', self.fullpath, flags=re.IGNORECASE)
+        # Only process PDF files
+        if not self.fullpath.lower().endswith(".pdf"):
+            return None
 
-
-        # If cache file exists, use it instead of parsing PDF again
-        if os.path.exists(txt_cache_path):
-            return self.readTextFromFile(txt_cache_path)
-
-        # Otherwise, process the PDF as before
-        pdfText = None
-        if self.fullpath.lower().endswith(".pdf"):
-            pdfText = PDFMiner.getPDFText(self.fullpath)
-        return pdfText
+        # Try to extract text using PDFExtractor with caching enabled
+        return PDFExtractor.getPDFText(self.fullpath, useCache=True)
 
     def get_text_head(self, max_lines: int = 9) -> str:
         """

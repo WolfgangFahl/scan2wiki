@@ -7,12 +7,12 @@ import logging
 import time
 from collections import Counter
 from datetime import datetime
-from dataclasses import dataclass
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
 from nicegui import ui, run
 
 from scan.dms import Document
+from scan.upload_job import UploadJob
 
 
 class TimeMessage:
@@ -75,7 +75,7 @@ class UploadForm:
     upload form
     """
 
-    def __init__(self, solution, wiki_users: dict, path: str):
+    def __init__(self, solution, wiki_users: dict, path:str):
         """
         constructor
         """
@@ -102,8 +102,6 @@ class UploadForm:
             logger.addFilter(self.upload_log_filter)
 
         self.uploaded = False
-        # self.pdfminer_logger = logging.getLogger('pdfminer')
-        # self.webserver.logger.addHandler(self.pdfminer_logger)
 
     def setup_form(self):
         """
@@ -195,7 +193,7 @@ class UploadForm:
 
     def update(self):
         """
-        update the page_link dependend on the page text or selected wiki
+        update the page_link dependent on the page text or selected wiki
         """
         page_title = self.page_title.value
         wiki_id = self.wiki_user_select.value

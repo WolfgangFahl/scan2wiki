@@ -1,0 +1,14 @@
+^BITPlan
+Begriffe
+1^ tntemsilEnaJ
+Re<iulinnenu
+Engineering
+W Bnanl
+I Requirements Engineering bezeichnet die Ermittlung,
+Dokumentation, Prüfung /Abstimmung und der Verwaltung von
+Anforderungen.
+I Requirements Management bezeichnet die Verwaltung von
+Anforderungen innerhalb des Requirements Engineerings.
+I Requirements Manager
+I Requirements Management Plan
+CHOl-03-Begriffe
