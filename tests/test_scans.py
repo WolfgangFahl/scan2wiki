@@ -49,7 +49,7 @@ class TestScans(Basetest):
         Test the get_scan_files method.
         """
         scans = Scans(self.test_dir)
-        scan_files = scans.get_scan_files()
+        scan_files = scans.get_scan_files(allowed_extensions=[".txt"])
         self.assertEqual(len(scan_files), 3)
         # Add more assertions to check the contents of scan_files
 
