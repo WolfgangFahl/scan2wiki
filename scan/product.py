@@ -143,9 +143,11 @@ class Products:
             product_dict = {
                 "#": str(index),
                 "Product": product.as_html(),
-                "ASIN": Link.create(product.amazon_url, product.asin)
-                if product.asin
-                else "",
+                "ASIN": (
+                    Link.create(product.amazon_url, product.asin)
+                    if product.asin
+                    else ""
+                ),
                 "Title": product.title,
                 "gtin": product.gtin if product.gtin else "",
                 "Price": product.price,

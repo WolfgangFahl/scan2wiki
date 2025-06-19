@@ -6,11 +6,13 @@ Created on 2023-11-14
 
 import os
 from datetime import datetime
-from typing import Any,Dict, List
+from typing import Any, Dict, List
 
 from ngwidgets.widgets import Link
+
 from scan.dms import Document
 from scan.logger import Logger
+
 
 class Scans:
     """
@@ -53,7 +55,9 @@ class Scans:
         link = Link.create(url, text=path)
         return url, link
 
-    def get_scan_files(self, allowed_extensions: List[str] = [".pdf", ".jpg"]) -> List[Dict[str, Any]]:
+    def get_scan_files(
+        self, allowed_extensions: List[str] = [".pdf", ".jpg"]
+    ) -> List[Dict[str, Any]]:
         """
         Retrieve the scanned files information from the directory.
 
@@ -74,9 +78,9 @@ class Scans:
             except Exception as ex:
                 msg = f"error {str(ex)} for {path}"
                 Logger.log(msg)
-        scan_files = sorted(scan_files, key=lambda x: x['lastModified'],reverse=True)
-        for index,scan_file in enumerate(scan_files):
-            scan_file["#"]=index+1
+        scan_files = sorted(scan_files, key=lambda x: x["lastModified"], reverse=True)
+        for index, scan_file in enumerate(scan_files):
+            scan_file["#"] = index + 1
         return scan_files
 
     def get_valid_files(self, allowed_extensions: List[str]) -> List[str]:
@@ -93,7 +97,7 @@ class Scans:
 
         for path in os.listdir(self.scandir):
             # Ignore hidden files
-            if path.startswith('.'):
+            if path.startswith("."):
                 continue
 
             # Check file extension
@@ -147,7 +151,6 @@ class Scans:
             "wiki": "scan",
             "categories": doc.categories,
             "topic": doc.topic,
-
         }
 
         return scan_file
@@ -172,10 +175,10 @@ class Scans:
             "modified_time": ftimestr,
             "size": size,
             "file_url": fileurl,
-            "file_link": file_link
+            "file_link": file_link,
         }
 
-    def delete(self, path:str):
+    def delete(self, path: str):
         """
         Args:
             path (str): the file to delete

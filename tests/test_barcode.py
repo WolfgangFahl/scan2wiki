@@ -3,12 +3,14 @@ Created on 2023-11-16
 
 @author: wf
 """
+
 import os
 
 from ngwidgets.basetest import Basetest
 
 from scan.barcode import Barcode
 from scan.scan_webserver import ScanSolution
+
 
 class TestBarcode(Basetest):
     """

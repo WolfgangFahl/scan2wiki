@@ -3,11 +3,13 @@ Created on 21.03.2021
 
 @author: wf
 """
+
 from ngwidgets.basetest import Basetest
 
 from scan.dms import Document
-from scan.scan_webserver import ScanSolution
 from scan.pdf import PDFExtractor
+from scan.scan_webserver import ScanSolution
+
 
 class TestPDFExtract(Basetest):
     """
@@ -17,7 +19,7 @@ class TestPDFExtract(Basetest):
     def setUp(self):
         Basetest.setUp(self)
         self.testdata = ScanSolution.examples_path()
-        self.debug=False
+        self.debug = False
         pass
 
     def testPDFExtract(self):
@@ -34,7 +36,7 @@ class TestPDFExtract(Basetest):
             doc = Document()
             doc.fromFile(self.testdata, testFile, withOcr=True, local=True)
             pdfText = doc.getOcrText()
-            pdf_text_extracted=PDFExtractor.getPDFText(doc.fullpath,useCache=False)
+            pdf_text_extracted = PDFExtractor.getPDFText(doc.fullpath, useCache=False)
             if self.debug:
                 print(str(doc))
                 print(pdfText)
@@ -44,6 +46,6 @@ class TestPDFExtract(Basetest):
             else:
                 for exContent in exContentList:
                     self.assertTrue(exContent in pdfText, testFile)
-                self.assertEqual(pdfText,pdf_text_extracted)
+                self.assertEqual(pdfText, pdf_text_extracted)
 
         pass

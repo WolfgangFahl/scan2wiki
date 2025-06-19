@@ -3,13 +3,15 @@ Created on 2023-11-14
 
 @author: wf
 """
+
 import logging
 import time
 from collections import Counter
 from datetime import datetime
+
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
-from nicegui import ui, run
+from nicegui import run, ui
 
 from scan.dms import Document
 from scan.upload_job import UploadJob
@@ -75,11 +77,11 @@ class UploadForm:
     upload form
     """
 
-    def __init__(self, solution, wiki_users: dict, path:str):
+    def __init__(self, solution, wiki_users: dict, path: str):
         """
         constructor
         """
-        self.solution=solution
+        self.solution = solution
         self.webserver = solution.webserver
         self.rem_value = 48  # Default rem value
         self.red_link = "color: red;text-decoration: underline;"
@@ -109,9 +111,7 @@ class UploadForm:
         """
         with ui.splitter(value=30).classes("h-fit").style("flex:1") as self.splitter:
             with self.splitter.before:
-                self.progressbar = NiceguiProgressbar(
-                    100, "processing page", "steps"
-                )
+                self.progressbar = NiceguiProgressbar(100, "processing page", "steps")
                 with ui.card().tight():
                     with ui.card_section():
                         self.submit = ui.button("upload", on_click=self.run_upload)

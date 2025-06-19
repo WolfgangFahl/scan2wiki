@@ -3,12 +3,13 @@ Created on 2023-11-14
 
 @author: wf
 """
+
 import sys
 from argparse import ArgumentParser
 
 from ngwidgets.cmd import WebserverCmd
 
-from scan.scan_webserver import ScanWebServer, ScanSolution
+from scan.scan_webserver import ScanSolution, ScanWebServer
 
 
 class ScanCmd(WebserverCmd):
@@ -36,7 +37,9 @@ class ScanCmd(WebserverCmd):
         parser.add_argument(
             "-wc", "--webcam", help="url of webcam for scans [default: %(default)s]"
         )
-        parser.add_argument("--web-host", default="z", help="Web server hostname or IP.")
+        parser.add_argument(
+            "--web-host", default="z", help="Web server hostname or IP."
+        )
         return parser
 
 

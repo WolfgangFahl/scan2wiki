@@ -4,9 +4,10 @@ Created on 2025-04-07
 @author: wf
 """
 
-import fitz  # PyMuPDF
 import os
 import re
+
+import fitz  # PyMuPDF
 
 
 class PDFExtractor:
@@ -15,7 +16,9 @@ class PDFExtractor:
     """
 
     @classmethod
-    def getPDFText(cls, pdfFilenamePath, throwError: bool = True, useCache: bool = True):
+    def getPDFText(
+        cls, pdfFilenamePath, throwError: bool = True, useCache: bool = True
+    ):
         """
         Gets text content from PDF, with optional caching.
 
@@ -28,12 +31,12 @@ class PDFExtractor:
             str: The text content of the PDF
         """
         # Define the cache file path
-        txt_cache_path = re.sub(r'\.pdf$', '.txt', pdfFilenamePath, flags=re.IGNORECASE)
+        txt_cache_path = re.sub(r"\.pdf$", ".txt", pdfFilenamePath, flags=re.IGNORECASE)
 
         # If cache should be used and exists, read from it
         if useCache and os.path.exists(txt_cache_path):
             try:
-                with open(txt_cache_path, 'r', encoding='utf-8') as f:
+                with open(txt_cache_path, "r", encoding="utf-8") as f:
                     return f.read()
             except Exception as e:
                 print(f"Warning: Failed to read cache file {txt_cache_path}: {str(e)}")
@@ -54,10 +57,12 @@ class PDFExtractor:
             # If caching is enabled, write the text to the cache file
             if useCache and text:
                 try:
-                    with open(txt_cache_path, 'w', encoding='utf-8') as f:
+                    with open(txt_cache_path, "w", encoding="utf-8") as f:
                         f.write(text)
                 except Exception as e:
-                    print(f"Warning: Failed to write cache file {txt_cache_path}: {str(e)}")
+                    print(
+                        f"Warning: Failed to write cache file {txt_cache_path}: {str(e)}"
+                    )
 
             return text
 

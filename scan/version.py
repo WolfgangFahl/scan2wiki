@@ -3,6 +3,7 @@ Created on 2022-02-16
 
 @author: wf
 """
+
 from dataclasses import dataclass
 
 import scan

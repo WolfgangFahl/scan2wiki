@@ -3,6 +3,7 @@ Created on 2021-10-26
 
 @author: wf
 """
+
 import time
 
 
@@ -11,7 +12,7 @@ class Profiler:
     simple profiler
     """
 
-    def __init__(self, msg:str, profile=True):
+    def __init__(self, msg: str, profile=True):
         """
         construct me with the given msg and profile active flag
 

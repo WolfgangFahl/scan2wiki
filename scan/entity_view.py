@@ -3,20 +3,22 @@ Created on 2023-11-17
 
 @author: wf
 """
+
 from lodstorage.entity import EntityManager
-from ngwidgets.lod_grid import ListOfDictsGrid, GridConfig
+from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
 from ngwidgets.widgets import Link
 from nicegui import ui
+
 
 class EntityManagerView:
     """
     a view for a given entity manager
     """
 
-    def __init__(self, em: EntityManager,key_col:str="name",debug:bool=False):
+    def __init__(self, em: EntityManager, key_col: str = "name", debug: bool = False):
         self.em = em
-        self.key_col=key_col
-        self.debug=debug
+        self.key_col = key_col
+        self.debug = debug
         self.title = self.em.entityPluralName
         self.setup_view()
 
@@ -29,7 +31,7 @@ class EntityManagerView:
             editable=False,
             multiselect=True,
             with_buttons=False,
-            debug=self.debug
+            debug=self.debug,
         )
         ui.label(self.title)
         self.lod_grid = ListOfDictsGrid(config=grid_config)

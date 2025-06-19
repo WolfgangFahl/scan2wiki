@@ -9,8 +9,8 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 """
 
 import configparser
-import logging
 import getpass
+import logging
 import os
 import re
 import sys
@@ -18,10 +18,10 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+from basemkit.yamlable import lod_storable
 from bs4 import UnicodeDammit
 from lodstorage.entity import EntityManager
 from lodstorage.jsonable import JSONAble
-from lodstorage.yamlable import lod_storable
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
 from wikibot3rd.smw import SMWClient
@@ -31,6 +31,7 @@ from wikibot3rd.wikiuser import WikiUser
 
 from scan.logger import Logger
 from scan.pdf import PDFExtractor
+
 
 class Wiki(object):
     """
@@ -120,7 +121,7 @@ class DMSStorage:
     @classmethod
     def get_config(cls):
         config = configparser.ConfigParser()
-        config.read(os.path.expanduser('~/.dms/config.ini'))
+        config.read(os.path.expanduser("~/.dms/config.ini"))
         return config
 
     @staticmethod
@@ -159,8 +160,8 @@ class DMSStorage:
         Returns:
             str: the path to the scan directory
         """
-        config=cls.get_config()
-        scandir = config.get('dms', 'scan_inbox')
+        config = cls.get_config()
+        scandir = config.get("dms", "scan_inbox")
         return scandir
 
     @staticmethod
@@ -211,6 +212,7 @@ class DMSStorage:
             if em.config.mode is StoreMode.SQL:
                 sqlDB = DMSStorage.getSqlDB()
                 em.initSQLDB(sqlDB)
+
 
 class Document(JSONAble):
     """
@@ -323,8 +325,8 @@ class Document(JSONAble):
             self.getOcrText()
 
         if self.ocrText:
-            lines = self.ocrText.split('\n')
-            return '\n'.join(lines[:max_lines] if len(lines) >= max_lines else lines)
+            lines = self.ocrText.split("\n")
+            return "\n".join(lines[:max_lines] if len(lines) >= max_lines else lines)
 
         return ""
 
@@ -536,7 +538,7 @@ class Folder(JSONAble):
         documents = self.getDocuments(files)
         return documents
 
-    def getDocuments(self, files, withOcr=False,progress_bar=None):
+    def getDocuments(self, files, withOcr=False, progress_bar=None):
         """
         get the documents for this folder based on the files from my listdir
         progress_bar(Progressbar): a progress bar to track progress
@@ -853,7 +855,9 @@ class Archive(JSONAble):
                         folder.fileCount = len(pdfFiles)
                         folder.lastModified = DMSStorage.getDatetime(fullpath)
                         folder.created = folder.lastModified
-                        folderDocuments = folder.getDocuments(pdfFiles, withOcr=withOcr, progress_bar=progress_bar)
+                        folderDocuments = folder.getDocuments(
+                            pdfFiles, withOcr=withOcr, progress_bar=progress_bar
+                        )
                         # add the results
                         documentList.extend(folderDocuments)
                         foldersByPath[folder.path] = folder
@@ -923,11 +927,7 @@ class ArchiveManager(EntityManager):
 
     @staticmethod
     def addFilesAndFoldersForArchive(
-        archive=None,
-        withOcr=False,
-        progress_bar=None,
-        store=False,
-        debug=True
+        archive=None, withOcr=False, progress_bar=None, store=False, debug=True
     ):
         """
         add Files and folder for the given Archive
@@ -944,7 +944,9 @@ class ArchiveManager(EntityManager):
         msg = f"getting folders for {archive.name}"
         if debug:
             print(msg)
-        afoldersByPath, documentList = archive.getFoldersAndDocuments(withOcr=withOcr,progress_bar=progress_bar)
+        afoldersByPath, documentList = archive.getFoldersAndDocuments(
+            withOcr=withOcr, progress_bar=progress_bar
+        )
         folderCount = len(afoldersByPath)
         msg = f"found {folderCount} folders in {archive.name}"
         folders.extend(afoldersByPath.values())

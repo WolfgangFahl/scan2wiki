@@ -3,6 +3,7 @@ Created on 2023-11-16
 
 @author: wf
 """
+
 import random
 from typing import List, Optional
 

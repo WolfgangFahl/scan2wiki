@@ -4,26 +4,31 @@ Updated on 2024-12-29
 
 @author: wf
 """
+
+import base64
+import getpass
+import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
+
 import requests
-import base64
-import os
 import yaml
-from scan.amazon import Amazon
-from scan.product import Products
-from scan.barcode import Barcode
+from ngwidgets.llm import VisionLLM
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
-from ngwidgets.llm import VisionLLM
-from nicegui import ui, background_tasks
-import subprocess
-import getpass
+from nicegui import background_tasks, ui
+
+from scan.amazon import Amazon
+from scan.barcode import Barcode
+from scan.product import Products
+
 
 class BaseWebcamForm:
     """
     Base class for webcam functionality
     """
+
     def __init__(self, solution, default_url: str):
         """
         Initialize base webcam functionality
@@ -113,7 +118,9 @@ class BaseWebcamForm:
             with self.preview_row:
                 if image_path:
                     url = f"/files/{image_path}"
-                    html_markup = f"""<img src="{url}" style="width: 100%; height: auto;" />"""
+                    html_markup = (
+                        f"""<img src="{url}" style="width: 100%; height: auto;" />"""
+                    )
                     self.image_link.content = Link.create(url, image_path)
                     self.preview.content = html_markup
                 else:
@@ -121,10 +128,12 @@ class BaseWebcamForm:
         except Exception as ex:
             self.solution.handle_exception(ex)
 
+
 class ProductWebcamForm(BaseWebcamForm):
     """
     Extension of WebcamForm for barcode scanning and product management
     """
+
     def __init__(self, solution, default_url: str):
         """
         Initialize product handling functionality
@@ -208,16 +217,18 @@ class ProductWebcamForm(BaseWebcamForm):
         except Exception as ex:
             self.solution.handle_exception(ex)
 
+
 class AIWebcamForm(BaseWebcamForm):
     """
     Extension of WebcamForm with AI capabilities
     """
+
     def __init__(self, solution, default_url: str):
         """
         Initialize AI functionality
         """
         super().__init__(solution, default_url)
-        self.args=solution.args
+        self.args = solution.args
         self.llm = VisionLLM()
         self.remote_user = getpass.getuser()
         self.auth_config_file = Path.home() / ".llm" / f"{self.args.web_host}-auth.yaml"
@@ -250,8 +261,7 @@ class AIWebcamForm(BaseWebcamForm):
         url_base = auth.get("url")
         return f"{url_base}{filename}" if url_base else None
 
-    def execute_remote_command(self,
-            command: list) -> tuple[str, str]:
+    def execute_remote_command(self, command: list) -> tuple[str, str]:
         """
         Execute a command related to remote host (scp/ssh)
 
@@ -262,19 +272,15 @@ class AIWebcamForm(BaseWebcamForm):
             tuple: (stdout, stderr)
         """
         try:
-            result = subprocess.run(
-                command, check=True, capture_output=True, text=True
-            )
+            result = subprocess.run(command, check=True, capture_output=True, text=True)
             return result.stdout, result.stderr
         except subprocess.CalledProcessError as ex:
             self.solution.handle_exception(ex)
             return "", str(ex)
 
-    def copy_to_remote(self,
-            host: str,
-            local_path: str,
-            remote_path: str,
-            filename: str):
+    def copy_to_remote(
+        self, host: str, local_path: str, remote_path: str, filename: str
+    ):
         """
         Copy file to remote server via scp and fix permissions
 
@@ -287,16 +293,24 @@ class AIWebcamForm(BaseWebcamForm):
         remote_file = os.path.join(remote_path, filename)
 
         # Copy file
-        scp_command = ["scp", "-q", local_path, f"{self.remote_user}@{host}:{remote_file}"]
+        scp_command = [
+            "scp",
+            "-q",
+            local_path,
+            f"{self.remote_user}@{host}:{remote_file}",
+        ]
         self.execute_remote_command(scp_command)
 
         # Fix ownership and permissions separately
         ssh_command = ["ssh", f"{self.remote_user}@{host}", f"chmod 644 {remote_file}"]
         self.execute_remote_command(ssh_command)
 
-        ssh_command = ["ssh", f"{self.remote_user}@{host}", f"sudo chown www-data {remote_file}"]
+        ssh_command = [
+            "ssh",
+            f"{self.remote_user}@{host}",
+            f"sudo chown www-data {remote_file}",
+        ]
         self.execute_remote_command(ssh_command)
-
 
     async def analyze_image(self):
         """
@@ -304,7 +318,7 @@ class AIWebcamForm(BaseWebcamForm):
         """
         background_tasks.create(self.perform_analysis())
 
-    def show_markup(self,msg:str,with_notify:bool=True):
+    def show_markup(self, msg: str, with_notify: bool = True):
         #  display results
         with self.markup_row:
             self.markup_result.content = f"<pre>{msg}</pre>"
@@ -322,16 +336,11 @@ class AIWebcamForm(BaseWebcamForm):
             image_path = f"{self.scandir}/{self.image_path}"
             # Copy to remote location for LLM accessibility
             filename = os.path.basename(image_path)
-            remote_path=f"/home/{self.remote_user}/public_html/llm"
-            msg=f"Copying to {self.args.web_host}:{remote_path}/{filename}"
+            remote_path = f"/home/{self.remote_user}/public_html/llm"
+            msg = f"Copying to {self.args.web_host}:{remote_path}/{filename}"
             self.show_markup(msg)
-            self.copy_to_remote(
-                self.args.web_host,
-                image_path,
-                remote_path,
-                filename
-            )
-            msg="Starting LLM analysis ..."
+            self.copy_to_remote(self.args.web_host, image_path, remote_path, filename)
+            msg = "Starting LLM analysis ..."
             self.show_markup(msg)
             auth = self.get_auth_config()
 

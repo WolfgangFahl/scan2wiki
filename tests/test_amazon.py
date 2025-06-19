@@ -3,6 +3,7 @@ Created on 2023-11-16
 
 @author: wf
 """
+
 from ngwidgets.basetest import Basetest
 
 from scan.amazon import Amazon, Product
