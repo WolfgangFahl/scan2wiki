@@ -29,60 +29,103 @@ class Amazon:
 
     def extract_amazon_products(self, soup: BeautifulSoup) -> List[Product]:
         """
-        Extracts product information from Amazon product listing HTML content.
+        Parse an Amazon search result page (soup) into a list of Product objects.
 
-        Args:
-            soup (BeautifulSoup): Soup object of HTML content of the Amazon product listing page.
+        Amazon’s HTML changes often. As of now, each product is wrapped in:
+          <div data-component-type="s-search-result"> ... </div>
 
-        Returns:
-            List[Product]: A list of extracted product information as Product objects.
+        Inside each result we extract:
+          - title: from h2 > a
+          - image_url: from <img class="s-image">
+          - asin: from any link containing "/dp/<ASIN>"
+          - price: from <span class="a-price"><span class="a-offscreen">...</span></span>
         """
-        products = []
-        # Find all div elements that match the product listing structure
-        for index, div in enumerate(soup.find_all("div", class_="puisg-row")):
-            product_info = {}
+        products: List[Product] = []
 
-            # Pretty-print the first product div if debug is True
-            if self.debug and index == 0:
-                print("Debug - First Product Div:")
-                print(div.prettify())  # Pretty-print the first div
+        # Find all result containers
+        items = soup.find_all("div", attrs={"data-component-type": "s-search-result"})
 
-            # Extracting product title
-            title_div = div.find("h2", class_="a-size-mini")
-            if title_div and title_div.a:
-                product_info["title"] = title_div.a.get_text(strip=True)
+        # If debug mode is on, pretty-print the first result for inspection
+        if self.debug and items:
+            print("Debug - First Result Item:")
+            print(items[0].prettify())
 
-            # Extracting product image URL and ASIN
-            image_div = div.find("div", class_="s-product-image-container")
-            if image_div and image_div.a:
-                product_info["image_url"] = image_div.img["src"]
-                link = image_div.a["href"]
-                asin = link.split("/dp/")[-1].split("/")[0]
-                product_info["asin"] = asin
+        # Iterate over each search result
+        for item in items:
+            title = ""
+            image_url = ""
+            asin = ""
+            price = ""
 
-            # Extracting product price
-            price_span = div.find("span", class_="a-price")
-            if price_span and price_span.find("span", class_="a-offscreen"):
-                product_info["price"] = price_span.find(
-                    "span", class_="a-offscreen"
-                ).get_text(strip=True)
-                # Replace '\xa0€' with ' €' in price
-                product_info["price"] = product_info.get("price", "").replace(
-                    "\xa0", " "
-                )
+            # Extract product title
+            link = item.select_one("a h2")
+            if link:
+                title = link.get_text(strip=True)
 
-            # Add product info to list if it contains any relevant data
-            # Create a Product instance if title is present
-            if "title" in product_info:
-                product = Product(
-                    title=product_info["title"],
-                    image_url=product_info.get("image_url", ""),
-                    price=product_info.get("price", ""),
-                    asin=product_info.get("asin", ""),
-                )
-                products.append(product)
+            # Extract product image
+            img = item.select_one("img.s-image")
+            if img and img.get("src"):
+                image_url = img["src"]
+
+            # Extract ASIN from product link
+            asin_link = item.select_one('a[href*="/dp/"]')
+            if asin_link and asin_link.get("href"):
+                href = asin_link["href"]
+                if "/dp/" in href:
+                    asin = href.split("/dp/")[-1].split("/")[0]
+
+            # Extract product price
+            offscreen = item.select_one("span.a-price > span.a-offscreen")
+            if offscreen:
+                # Normalize non-breaking spaces in prices
+                price = offscreen.get_text(strip=True).replace("\xa0", " ")
+
+            # Only create a Product if we at least found a title
+            if title:
+                products.append(Product(title=title, image_url=image_url, price=price, asin=asin))
 
         return products
+
+    def visit_product(self, product: Product):
+        """
+        get product details from product page
+        """
+        if product.asin:
+            soup = self.get_soup(product.amazon_url)
+        # Example
+        # Produktinformation
+        # Herausgeber ‏ : ‎ Wiley
+        # Erscheinungstermin ‏ : ‎ 26. Januar 2021
+        # Auflage ‏ : ‎ 3.
+        # Sprache ‏ : ‎ Englisch
+        # Seitenzahl der Print-Ausgabe ‏ : ‎ 1232 Seiten
+        # ISBN-10 ‏ : ‎ 1119642787
+        # ISBN-13 ‏ : ‎ 978-1119642787
+        # Abmessungen ‏ : ‎ 19.81 x 4.32 x 23.62 cm
+
+        details = {}
+
+        # Find product information section
+        detail_section = soup.find("div", id="detailBullets_feature_div")
+        if detail_section:
+            if self.debug:
+                print(product.amazon_url)
+                print(detail_section.prettify())
+            # Get all list items containing product details
+            list_items = detail_section.find_all("li")
+
+            # Extract label-value pairs from each list item
+            for item in list_items:
+                spans = item.find_all("span")
+                if len(spans) >= 2:
+                    # First span contains the label, last span contains the value
+                    # Clean the label: remove Unicode marks, newlines, and split on colon
+                    label_raw = spans[0].get_text(strip=True)
+                    label = label_raw.split(':')[0].replace('\u200f', '').replace('\u200e', '').strip()
+                    value = spans[-1].get_text(strip=True)
+                    details[label] = value
+            product.details=details
+            pass
 
     def get_headers(self):
         # Possible components of a user agent string
@@ -109,19 +152,27 @@ class Amazon:
         headers = {"User-Agent": user_agent}
         return headers
 
+    def get_soup(self, url: str) -> BeautifulSoup:
+        """
+        Get parsed HTML soup from URL.
+        """
+        headers = self.get_headers()
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            raise Exception(f"Request to {url} failed with status {response.status_code}")
+
+        soup= BeautifulSoup(response.content, "html.parser")
+        return soup
+
     def lookup_products(self, search_key: str):
         """
         lookup the given search key e.g. ISBN or EAN
         """
         url = f"https://www.amazon.de/s?k={search_key}"
+        soup = self.get_soup(url)
 
-        headers = self.get_headers()
-
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, "html.parser")
-            product_list = self.extract_amazon_products(soup)
-            return product_list
-        else:
-            msg = f"lookup for {search_key} failed with HTML status code {response.status_code}"
-            raise Exception(msg)
+        product_list = self.extract_amazon_products(soup)
+        if len(product_list)>0:
+            self.visit_product(product_list[0])
+        return product_list

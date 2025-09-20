@@ -22,7 +22,7 @@ class TestProduct(Basetest):
         Test adding products, storing and reloading them.
         """
         debug = self.debug
-        # debug=True
+        debug=True
         # Test data setup
         examples = [
             Product(
@@ -38,10 +38,10 @@ class TestProduct(Basetest):
         if use_temp:
             # Creating Products instance
             temp_dir = tempfile.mkdtemp()  # Create a temporary directory
-            temp_file = os.path.join(temp_dir, "temp_products.json")
+            temp_file = os.path.join(temp_dir, "products.yaml")
         else:
             temp_file = None
-        products = Products(store_path=temp_file)
+        products = Products()
 
         # Add example products
         for product in examples:
@@ -49,17 +49,19 @@ class TestProduct(Basetest):
                 print(product)
             products.add_product(product)
 
-        # Save the products to a JSON file
-        products.save_to_json()
+        # Save the products to a YAML file
+        products.save_to_yaml_file(temp_file)
+        store_path=temp_file if use_temp else Products.store_path()
 
-        # Optionally print the saved JSON file content for debugging
+
+        # Optionally print the saved YAML file content for debugging
         if debug:
-            with open(products.store_path, "r") as file:
-                print("Saved JSON content:", file.read())
+            with open(store_path, "r") as file:
+                print("Saved YAML content:", file.read())
 
-        # Clear current products and load them back from the file
-        products.clear()
-        products.load_from_json()
+
+        # load
+        products = Products.ofYaml(store_path)
 
         # Check if the loaded products match the added products
         for expected_product in examples:
@@ -70,6 +72,8 @@ class TestProduct(Basetest):
             self.assertEqual(expected_product.asin, loaded_product.asin)
 
         # Clean up - remove the temporary directory if not in debug mode
-        if not debug:
-            os.remove(temp_file)
-            os.rmdir(temp_dir)
+        if not debug and use_temp:
+            try:
+                os.remove(store_path)
+            finally:
+                os.rmdir(temp_dir)

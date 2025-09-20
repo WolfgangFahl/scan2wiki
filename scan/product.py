@@ -4,12 +4,11 @@ Created on 2023-11-16
 @author: wf
 """
 
-import json
-import os
-from dataclasses import dataclass
-from os.path import dirname, exists, expanduser
+from dataclasses import dataclass, field
+from os.path import expanduser
 from typing import Dict, List, Optional
 
+from basemkit.yamlable import lod_storable
 from ngwidgets.widgets import Link
 
 
@@ -27,14 +26,15 @@ class Product:
     """
 
     title: str
-    image_url: str
-    price: str
+    image_url: Optional[str] = None
+    price: Optional[str] = None
     asin: Optional[str] = None
     gtin: Optional[str] = None
+    details: Dict[str, str] = field(default_factory=dict)
 
     @property
     def amazon_url(self) -> str:
-        return f"https://www.amazon.com/dp/{self.asin}" if self.asin else None
+        return f"https://www.amazon.de/dp/{self.asin}" if self.asin else None
 
     def as_html(self, img_size: int = 128) -> str:
         """
@@ -58,7 +58,7 @@ class Product:
         html += f"</div>"
         return html
 
-
+@lod_storable
 class Products:
     """
     Class to handle/manage product instances and make those persistent.
@@ -69,8 +69,13 @@ class Products:
         products_by_asin (Dict[str, Product]): Dictionary mapping ASIN to products.
         products_by_gtin (Dict[str, Product]): Dictionary mapping gtin to products.
     """
+    products: List[Product] = field(default_factory=list)
 
-    def __init__(self, store_path: str = None):
+    # transient indexes (not persisted)
+    products_by_asin: Dict[str, Product] = field(init=False, repr=False, default_factory=dict)
+    products_by_gtin: Dict[str, Product] = field(init=False, repr=False, default_factory=dict)
+
+    def __post_init__(self):
         """
         Initialize the Products instance.
 
@@ -78,16 +83,22 @@ class Products:
             store_path (str, optional): The file path where products are stored as JSON.
                                        Defaults to ~/.scan2wiki/products.json.
         """
-        self.store_path = store_path or expanduser("~/.scan2wiki/products.json")
-        self.clear()
+        self.products_by_asin = {p.asin: p for p in self.products if p.asin}
+        self.products_by_gtin = {p.gtin: p for p in self.products if p.gtin}
 
-    def clear(self):
-        """
-        Clears the current product list and the associated mappings.
-        """
-        self.products = []
-        self.products_by_asin = {}
-        self.products_by_gtin = {}
+
+    @classmethod
+    def store_path(cls)->str:
+        yaml_path=expanduser("~/.scan2wiki/products.yaml")
+        return yaml_path
+
+    @classmethod
+    def ofYaml(cls, yaml_path: str=None) -> 'Products':
+        if yaml_path is None:
+            yaml_path=cls.store_path()
+        products=cls.load_from_yaml_file(yaml_path)
+        return products
+
 
     def add_product(self, product: Product):
         """
@@ -155,36 +166,4 @@ class Products:
             lod.append(product_dict)
         return lod
 
-    def save_to_json(self, filename: str = None):
-        """
-        Saves the current list of products to a JSON file.
 
-        Args:
-            filename (str, optional): The filename where to save the JSON data.
-                                      Defaults to the instance's store_path attribute.
-        """
-
-        filename = filename or self.store_path
-        # Ensure the directory for the store_path exists
-        directory = dirname(filename)
-        if not exists(directory):
-            os.makedirs(directory, exist_ok=True)
-
-        product_data = [product.__dict__ for product in self.products]
-        with open(filename, "w") as file:
-            json.dump(product_data, file, indent=2)
-
-    def load_from_json(self, filepath: str = None):
-        """
-        Loads products from a JSON file and updates the current list and mappings.
-
-        Args:
-            filepath (str, optional): The filepath from which to load the JSON data.
-                                      Defaults to the instance's store_path attribute.
-        """
-        filename = filepath or self.store_path
-        if os.path.exists(filename):
-            with open(filename, "r") as file:
-                product_records = json.load(file)
-            for product_record in product_records:
-                self.add_product(Product(**product_record))
