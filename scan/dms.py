@@ -396,34 +396,80 @@ class Document:
                     raise (ex)
                 return text
 
-    def getOcrText(self):
+    def readMultiPageOcrText(self, ocrDirectory: str) -> str:
         """
-        get the OCR
+        Read OCR text from multiple page files in the specified directory.
+
+        Args:
+            ocrDirectory: Directory containing the page files
+
+        Returns:
+            Combined text from all pages, or None if no pages found
         """
-        parent = Path(self.fullpath).parent.absolute()
-        ocrPath = f"{parent}/.ocr"
-        self.ocrText = None
+        page = 1
+        maxPages = 1000
+        combinedText = None
+
+        # Check if first page exists
+        pageFileName = f"{ocrDirectory}/{self.basename}_p{page:03d}.txt"
+        if os.path.isfile(pageFileName):
+            pageText = self.readTextFromFile(pageFileName)
+            if pageText is not None:
+                combinedText = pageText
+
+                # Read remaining pages
+                for page in range(2, maxPages):
+                    pageFileName = f"{ocrDirectory}/{self.basename}_p{page:03d}.txt"
+                    if not os.path.isfile(pageFileName):
+                        break
+                    nextPage = self.readTextFromFile(pageFileName)
+                    if nextPage is not None:
+                        combinedText += nextPage
+
+        return combinedText
+
+    def getOcrTextFromPath(self,ocrPath:str,withMultiPage:bool=False)->str:
+        """
+        Attempts to read OCR text from a specified directory path.
+
+        Checks for a single-page text file (basename.txt). If not found and
+        `withMultiPage` is True, it attempts to read multi-page OCR text.
+
+        Args:
+            ocrPath: The directory path (str) to search for OCR text.
+            withMultiPage: If True, calls readMultiPageOcrText if the single-page file isn't found.
+
+        Returns:
+            The OCR text string if found, otherwise None.
+        """
+        ocr_text=None
         if os.path.isdir(ocrPath):
             ocrFileName = f"{ocrPath}/{self.basename}.txt"
             if os.path.isfile(ocrFileName):
-                self.ocrText = self.readTextFromFile(ocrFileName)
-            else:
-                page = 1
-                maxPages = 1000
-                pageFileName = f"{ocrPath}/{self.basename}_p{page:03d}.txt"
-                if os.path.isfile(pageFileName):
-                    pageText = self.readTextFromFile(pageFileName)
-                    if pageText is not None:
-                        self.ocrText = pageText
-                        for page in range(2, maxPages):
-                            pageFileName = f"{ocrPath}/{self.basename}_p{page:03d}.txt"
-                            if not os.path.isfile(pageFileName):
-                                break
-                            nextPage = self.readTextFromFile(pageFileName)
-                            if nextPage is not None:
-                                self.ocrText += nextPage
-        if self.ocrText is None:
-            self.ocrText = self.getPDFText()
+                ocr_text= self.readTextFromFile(ocrFileName)
+            elif withMultiPage:
+                ocr_text = self.readMultiPageOcrText(ocrPath)
+        return ocr_text
+
+    def getOcrText(self):
+        """
+        Retrieves the OCR text for the document following a specific search order.
+
+        The search priority is:
+        1. Base directory (strict: only single-page OCR).
+        2. Hidden .ocr directory (permissive: with multi-page fallback).
+        3. Direct extraction from the source file (e.g., PDF).
+
+        Returns:
+            The retrieved OCR text string, or None if no text could be found.
+        """
+        parent = Path(self.fullpath).parent.absolute()
+        ocr_text=self.getOcrTextFromPath(parent, withMultiPage=False)
+        if ocr_text is None:
+            ocr_text=self.getOcrTextFromPath(parent / ".ocr", withMultiPage=True)
+        if ocr_text is None:
+            ocr_text=self.getPDFText()
+        self.ocrText=ocr_text
         return self.ocrText
 
     def uploadFile(self, wikiId):
