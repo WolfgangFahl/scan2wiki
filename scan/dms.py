@@ -8,29 +8,30 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 """
 
+from collections import Counter
 import configparser
+from dataclasses import field, dataclass
+from datetime import datetime
 import getpass
 import logging
 import os
+from pathlib import Path
 import re
 import sys
-from collections import Counter
-from datetime import datetime
-from pathlib import Path
+from typing import Optional
 
 from basemkit.yamlable import lod_storable
 from bs4 import UnicodeDammit
-from lodstorage.entity import EntityManager
-from lodstorage.jsonable import JSONAble
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
+from scan.logger import Logger
+from scan.pdf import PDFExtractor
 from wikibot3rd.smw import SMWClient
 from wikibot3rd.wikiclient import WikiClient
 from wikibot3rd.wikipush import WikiPush
 from wikibot3rd.wikiuser import WikiUser
 
-from scan.logger import Logger
-from scan.pdf import PDFExtractor
+from scan.entity import EntityManager
 
 
 class Wiki(object):
@@ -114,7 +115,6 @@ class DMSStorage:
     """
     Document management system storage configuration
     """
-
     profile = True
     withShowProgress = True
 
@@ -123,6 +123,21 @@ class DMSStorage:
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.dms/config.ini"))
         return config
+
+    @staticmethod
+    def fromCache(em: EntityManager):
+        """
+        initialize the given entity manager from it's cache
+
+        Args:
+            em(EntityManager): the entity manager to initialize
+        """
+        if em.isCached():
+            em.fromCache()
+        else:
+            if em.config.mode is StoreMode.SQL:
+                sqlDB = DMSStorage.getSqlDB()
+                em.initSQLDB(sqlDB)
 
     @staticmethod
     def getStorageConfig(debug: bool = False, mode="sql") -> StorageConfig:
@@ -198,23 +213,9 @@ class DMSStorage:
         ftimestr = ftime.strftime("%Y-%m-%d %H:%M:%S")
         return ftimestr
 
-    @staticmethod
-    def fromCache(em: EntityManager):
-        """
-        initialize the given entity manager from it's cache
 
-        Args:
-            em(EntityManager): the entity manager to initialize
-        """
-        if em.isCached():
-            em.fromCache()
-        else:
-            if em.config.mode is StoreMode.SQL:
-                sqlDB = DMSStorage.getSqlDB()
-                em.initSQLDB(sqlDB)
-
-
-class Document(JSONAble):
+@lod_storable
+class Document:
     """
     a document consist of one or more files in the filesystem
     or a wikipage - the name is the pagetitle
@@ -222,7 +223,60 @@ class Document(JSONAble):
 
     types then has the list of available file types e.g. "pdf,txt"
     for single page Documents  the document is somewhat redundant to the Page concept
+
+    sqlite document structure
+    CREATE TABLE document (
+      archiveName TEXT,
+      folderPath TEXT,
+      fullpath TEXT,
+      fileName TEXT,
+      basename TEXT,
+      timestampStr TEXT,
+      pageTitle TEXT,
+      categories TEXT,
+      topic TEXT,
+      url TEXT PRIMARY KEY,
+      created TIMESTAMP,
+      size INTEGER,
+      lastModified TIMESTAMP,
+      name TEXT,
+      types TEXT,
+      ocrText TEXT
+    )
+
     """
+    # Archive and path information
+    archiveName: str = ""  # e.g. "bitplan-scan"
+    folderPath: str = ""  # e.g. "/bitplan/scan/inbox"
+    fullpath: str = ""  # e.g. "/Volumes/bitplan/scan/inbox/2025-02-23-13-37-39.pdf"
+
+    # File identification
+    fileName: str = ""  # e.g. "2025-02-23-13-37-39.pdf"
+    basename: str = ""  # e.g. "2025-02-23-13-37-39" (filename without extension)
+    name: str = ""  # e.g. "2025-02-23-13-37-39.pdf"
+
+    # Wiki page information
+    pageTitle: str = ""  # e.g. "2025-02-23-13-37-39"
+    categories: str = ""  # e.g. "2025" (comma-separated list)
+    topic: str = ""  # e.g. "OCRDocument"
+
+    # URL (PRIMARY KEY in SQLite)
+    url: str = ""  # e.g. "http://capri.bitplan.com/bitplan/scan/inbox/2025-02-23-13-37-39.pdf"
+
+    # Timestamps
+    timestampStr: str = ""  # e.g. "2025-02-23 13:37:40"
+    created: Optional[datetime] = None  # e.g. datetime(2025, 2, 23, 13, 37, 40, 378206)
+    lastModified: Optional[datetime] = None  # e.g. datetime(2025, 2, 23, 13, 37, 40, 378206)
+
+    # File metadata
+    size: int = 0  # e.g. 315358 (bytes)
+    types: str = ""  # e.g. "pdf,txt" (comma-separated file types available)
+
+    # Content
+    ocrText: Optional[str] = None  # Extracted OCR text from document
+
+    # Internal fields for string representation
+    fields: list = field(default_factory=lambda: ["archiveName","folderPath","fileName" ])
 
     @classmethod
     def getSamples(cls):
@@ -249,18 +303,10 @@ class Document(JSONAble):
         ]
         return samplesLOD
 
-    def __init__(self):
+    def __post_init__(self):
         """
-        construct me
+        post Constructor logic
         """
-        pass
-
-    def fromDict(self, record):
-        """
-        overwrite the from Dict
-        """
-        super().fromDict(record)
-        pass
 
     def fromFile(self, folderPath, file, local=False, withOcr=False):
         """
@@ -288,7 +334,6 @@ class Document(JSONAble):
 
     def __str__(self):
         text = "Upload:"
-        self.fields = ["fileName", "ocrText"]
         delim = ""
         for fieldname in self.fields:
             text += "%s%s=%s" % (delim, fieldname, self.__dict__[fieldname])
@@ -434,15 +479,40 @@ class Document(JSONAble):
 
         return pageContent
 
-
-class Folder(JSONAble):
+@lod_storable
+class Folder():
     """
-    a Folder might be a filesystem folder or a category in a wiki
-    """
+    a Folder might be a filesystem folder or a category in a wiki.
+    Maps to the SQLite table 'folder'.
 
-    def __init__(self):
+    CREATE TABLE folder (
+      archiveName TEXT,
+      url TEXT,
+      fileCount INTEGER,
+      lastModified TIMESTAMP,
+      created TIMESTAMP,
+      name TEXT,
+      path TEXT
+    )
+    """
+    # Archive information
+    archiveName: str = ""  # e.g. "bitplan-scan"
+
+    # URL (Primary Key in some contexts)
+    url: str = ""  # e.g. "http://capri.bitplan.com/bitplan/scan/2019/"
+
+    # Folder/Content metadata
+    fileCount: int = 0  # Number of files/documents in the folder
+    name: str = ""  # e.g. "2019" (folder name)
+    path: str = ""  # e.g. "/bitplan/scan/2019" (absolute path in the filesystem/archive)
+
+    # Timestamps
+    lastModified: Optional[datetime] = None  # Last modification timestamp
+    created: Optional[datetime] = None  # Creation timestamp
+
+    def __post_init__(self):
         """
-        Constructor
+        post Constructor logic
         """
 
     @classmethod
@@ -572,7 +642,6 @@ class Folder(JSONAble):
             pass
         pass
 
-
 class DocumentManager(EntityManager):
     """
     manager for Documents
@@ -700,15 +769,39 @@ class FolderManager(EntityManager):
         pass
 
 
-class Archive(JSONAble):
+@lod_storable
+class Archive():
     """
-    an Archive might be a filesystem
-    on a server or a (semantic) mediawiki
+    An Archive might be a filesystem on a server or a (semantic) MediaWiki.
+    Maps to the SQLite table 'archive'.
+
+    CREATE TABLE archive (
+      name TEXT,
+      server TEXT,
+      url TEXT PRIMARY KEY,
+      wikiid TEXT
+    )
     """
 
-    def __init__(self):
+    # Core Identification
+    name: str = ""  # e.g. "wiki", "bitplan-scan"
+    server: str = ""  # e.g. "wiki.bitplan.com", "capri.bitplan.com"
+    url: str = ""  # e.g. "http://wiki.bitplan.com" (PRIMARY KEY)
+    wikiid: Optional[str] = None  # e.g. "wiki", or NULL for non-wiki archives
+
+    # Calculated/Aggregate Metrics (based on getSamples, not in CREATE TABLE)
+    folderCount: int = 0
+    documentCount: int = 0
+
+    # Internal fields for string representation (optional)
+    fields: list = field(
+        default_factory=lambda: ["name", "server", "url", "folderCount", "documentCount"],
+        init=False
+    )
+
+    def __post_init__(self):
         """
-        Constructor
+        post Constructor logic
         """
 
     @classmethod

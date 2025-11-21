@@ -4,21 +4,28 @@ Created on 2024-08-25
 @author: wf
 """
 
-from lodstorage.jsonable import JSONAble
+from typing import Any
+
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
 from nicegui import run, ui
+from scan.dms import Archive
+
 
 # from ngwidgets.lod_grid import ListOfDictsGrid
-
-
 class EntityView:
     """
     a generic entity view
     """
 
-    def __init__(self, solution, entity: JSONAble):
-        """ """
+    def __init__(self, solution, entity: Any):
+        """
+            Initializes the EntityView.
+
+            Args:
+                solution: The main application solution/context object.
+                entity: The data entity to display (a dataclass instance).
+        """
         self.solution = solution
         self.entity = entity
 
@@ -28,7 +35,14 @@ class ArchiveView(EntityView):
     show a single archive
     """
 
-    def __init__(self, solution, archive: JSONAble):
+    def __init__(self, solution, archive: Archive):
+        """
+        Initializes the ArchiveView.
+
+        Args:
+            solution: The main application solution/context.
+            archive: The Archive dataclass instance to display and manage.
+        """
         super().__init__(solution, archive)
         self.am = self.solution.webserver.am
 
