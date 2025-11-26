@@ -144,13 +144,13 @@ class ScanSolution(InputWebSolution):
 
     async def aiwebcam(self):
         def setup_webcam():
-            self.webcam_form = AIWebcamForm(self, self.args.webcam)
+            self.webcam_form = AIWebcamForm(self, self.args.webcams)
 
         await self.setup_content_div(setup_webcam)
 
     async def barcodewebcam(self):
         def setup_webcam():
-            self.webcam_form = ProductWebcamForm(self, self.args.webcam)
+            self.webcam_form = ProductWebcamForm(self, self.args.webcams)
 
         await self.setup_content_div(setup_webcam)
 
@@ -231,7 +231,7 @@ class ScanSolution(InputWebSolution):
         self.webcam_button = self.link_button(
             name="AI Cam", icon_name="photo_camera", target="/ai-webcam"
         )
-        if self.args.webcam is None:
+        if self.args.webcams is None:
             self.webcam_button.button.disable()
         self.webcam_button = self.link_button(
             name="Barcode Cam", icon_name="qr_code_2", target="/barcode-webcam"

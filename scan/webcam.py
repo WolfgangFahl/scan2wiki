@@ -1,19 +1,16 @@
 """
 Created on 2023-11-16
 Updated on 2024-12-29
+Updated on 2025-11-26 for https://github.com/WolfgangFahl/scan2wiki/issues/25
 
 @author: wf
 """
 
-import base64
-import getpass
 import os
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
 import requests
-import yaml
 from ngwidgets.llm import VisionLLM
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
@@ -29,17 +26,20 @@ class BaseWebcamForm:
     Base class for webcam functionality
     """
 
-    def __init__(self, solution, default_url: str):
+    def __init__(self, solution, webcams: dict = None):
         """
         Initialize base webcam functionality
 
         Args:
             solution: The solution context
-            default_url: Default URL for the webcam
+            webcams: Dictionary of webcam name-url pairs
         """
         self.solution = solution
         self.scandir = solution.webserver.scandir
-        self.url = default_url
+        self.webcams = webcams or {}
+
+        # Default to the first webcam if available, else empty string
+        self.url = next(iter(self.webcams.values())) if self.webcams else ""
         self.shot_url = f"{self.url}"
         self.image_path = None
         self.setup_base_form()
@@ -62,7 +62,8 @@ class BaseWebcamForm:
         with ui.row() as self.markup_row:
             pass
         with ui.row() as self.preview_row:
-            self.webcam_input = ui.input(value=self.url)
+            # Simple input for URL, could be a select if self.webcams is populated
+            self.webcam_input = ui.input(value=self.url, label="Webcam URL").bind_value(self, "url")
             self.image_link = ui.html().style(Link.blue)
             self.preview = ui.html()
 
@@ -70,6 +71,8 @@ class BaseWebcamForm:
         """
         Start the scan process in the background
         """
+        # Ensure shot_url updates if user changed the input
+        self.shot_url = self.url
         background_tasks.create(self.perform_webcam_shot())
 
     async def perform_webcam_shot(self):
@@ -93,7 +96,7 @@ class BaseWebcamForm:
         image_file_name = None
         msg = "?"
         try:
-            response = requests.get(self.shot_url)
+            response = requests.get(self.shot_url, timeout=5)
             if response.status_code == 200:
                 Path(self.scandir).mkdir(parents=True, exist_ok=True)
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -107,7 +110,10 @@ class BaseWebcamForm:
                 msg = f"Failed to fetch the webcam image. Status code: {response.status_code}"
                 image_file_name = ""
         except Exception as ex:
-            self.solution.handle_exception(ex)
+            # Don't crash main loop, just return error
+            msg = str(ex)
+            image_file_name = ""
+
         return image_file_name, msg
 
     def update_preview(self, image_path: str = None):
@@ -134,11 +140,11 @@ class ProductWebcamForm(BaseWebcamForm):
     Extension of WebcamForm for barcode scanning and product management
     """
 
-    def __init__(self, solution, default_url: str):
+    def __init__(self, solution, webcams: dict = None):
         """
         Initialize product handling functionality
         """
-        super().__init__(solution, default_url)
+        super().__init__(solution, webcams)
         self.amazon = Amazon(self.solution.args.debug)
         self.product = None
         self.gtin = None
@@ -172,9 +178,11 @@ class ProductWebcamForm(BaseWebcamForm):
         """
         Add current product to database
         """
-        self.products.add_product(self.product)
-        self.products.save_to_json()
-        self.update_product_grid()
+        if self.product:
+            self.products.add_product(self.product)
+            self.products.save_to_json()
+            self.update_product_grid()
+            self.notify(f"Added product: {self.product.title}")
 
     def lookup_gtin(self):
         """
@@ -220,18 +228,22 @@ class ProductWebcamForm(BaseWebcamForm):
 
 class AIWebcamForm(BaseWebcamForm):
     """
-    Extension of WebcamForm with AI capabilities
+    Extension of WebcamForm with AI capabilities via ngwidgets.VisionLLM
     """
 
-    def __init__(self, solution, default_url: str):
+    def __init__(self, solution, webcams: dict):
         """
         Initialize AI functionality
         """
-        super().__init__(solution, default_url)
+        super().__init__(solution, webcams)
         self.args = solution.args
-        self.llm = VisionLLM()
-        self.remote_user = getpass.getuser()
-        self.auth_config_file = Path.home() / ".llm" / f"{self.args.web_host}-auth.yaml"
+
+        # Configure VisionLLM to use OpenRouter by default if keys are present
+        # This replaces the need for local scp/ssh since we use direct upload/base64
+        self.llm = VisionLLM(
+            base_url="https://openrouter.ai/api/v1",
+            model="google/gemini-2.0-flash-001"
+        )
         self.setup_ai_form()
 
     def setup_ai_form(self):
@@ -242,75 +254,6 @@ class AIWebcamForm(BaseWebcamForm):
             self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
         with self.markup_row:
             self.markup_result = ui.html("Markup will show here")
-
-    def get_auth_config(self) -> dict:
-        """
-        Load authentication configuration
-        """
-        config_dict = {}
-        if self.auth_config_file.exists():
-            with open(self.auth_config_file) as file:
-                config_dict = yaml.safe_load(file)
-        return config_dict
-
-    def get_public_url(self, filename: str) -> str:
-        """
-        Get public URL for image
-        """
-        auth = self.get_auth_config()
-        url_base = auth.get("url")
-        return f"{url_base}{filename}" if url_base else None
-
-    def execute_remote_command(self, command: list) -> tuple[str, str]:
-        """
-        Execute a command related to remote host (scp/ssh)
-
-        Args:
-            command: command as list of arguments
-
-        Returns:
-            tuple: (stdout, stderr)
-        """
-        try:
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            return result.stdout, result.stderr
-        except subprocess.CalledProcessError as ex:
-            self.solution.handle_exception(ex)
-            return "", str(ex)
-
-    def copy_to_remote(
-        self, host: str, local_path: str, remote_path: str, filename: str
-    ):
-        """
-        Copy file to remote server via scp and fix permissions
-
-        Args:
-            host: target server hostname
-            local_path: local file to copy
-            remote_path: destination path on remote
-            filename: name of file on remote
-        """
-        remote_file = os.path.join(remote_path, filename)
-
-        # Copy file
-        scp_command = [
-            "scp",
-            "-q",
-            local_path,
-            f"{self.remote_user}@{host}:{remote_file}",
-        ]
-        self.execute_remote_command(scp_command)
-
-        # Fix ownership and permissions separately
-        ssh_command = ["ssh", f"{self.remote_user}@{host}", f"chmod 644 {remote_file}"]
-        self.execute_remote_command(ssh_command)
-
-        ssh_command = [
-            "ssh",
-            f"{self.remote_user}@{host}",
-            f"sudo chown www-data {remote_file}",
-        ]
-        self.execute_remote_command(ssh_command)
 
     async def analyze_image(self):
         """
@@ -327,35 +270,35 @@ class AIWebcamForm(BaseWebcamForm):
 
     async def perform_analysis(self):
         """
-        Perform the AI analysis of the image
+        Perform the AI analysis of the image using VisionLLM
         """
         try:
+            if not self.llm.available():
+                self.notify("LLM API Key not found (OpenAI or OpenRouter).")
+                return
+
             if not self.image_path:
                 self.notify("No image available for analysis")
                 return
-            image_path = f"{self.scandir}/{self.image_path}"
-            # Copy to remote location for LLM accessibility
-            filename = os.path.basename(image_path)
-            remote_path = f"/home/{self.remote_user}/public_html/llm"
-            msg = f"Copying to {self.args.web_host}:{remote_path}/{filename}"
-            self.show_markup(msg)
-            self.copy_to_remote(self.args.web_host, image_path, remote_path, filename)
+
+            # Construct full local path
+            full_image_path = f"{self.scandir}/{self.image_path}"
+
+            if not os.path.exists(full_image_path):
+                self.notify(f"File not found: {full_image_path}")
+                return
+
             msg = "Starting LLM analysis ..."
             self.show_markup(msg)
-            auth = self.get_auth_config()
 
             prompt = """
             Please OCR the image and format the response for MediaWiki markup.
             The result will be copied to a page directly so do not wrap or add comments.
             """
 
-            url = self.get_public_url(os.path.basename(image_path))
-            if url:
-                markup = self.llm.analyze_image(url, auth, prompt)
-                self.show_markup(markup, with_notify=False)
-            else:
-                msg = "Error: Unable to get public URL for image analysis"
-                self.show_markup(msg)
+            # VisionLLM now handles local paths via Base64 encoding automatically
+            markup = self.llm.analyze_image(image_path=full_image_path, prompt_text=prompt)
+            self.show_markup(markup, with_notify=False)
 
         except Exception as ex:
             self.solution.handle_exception(ex)
