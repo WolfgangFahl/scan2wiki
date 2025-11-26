@@ -4,8 +4,9 @@ Created on 2021-10-21
 @author: wf
 """
 
-from ngwidgets.basetest import Basetest
+import unittest
 
+from ngwidgets.basetest import Basetest
 from scan.dms import Archive, ArchiveManager, DocumentManager, FolderManager
 from scan.profiler import Profiler
 
@@ -114,16 +115,17 @@ class TestDMS(Basetest):
             _elapsed, elapsedMessage = profiler.time()
             print(f"... {len(ocr_text):6} {elapsedMessage}")
 
+    @unittest.skipIf(self.inPublicCI(), "Skipping in public CI environment")
     def testUnicodeDammit(self):
-        """ """
-        if not self.inPublicCI():
-            from bs4 import UnicodeDammit
+        """
+        """
+        from bs4 import UnicodeDammit
 
-            with open(
-                "/Volumes/bitplan/scan/2007/.ocr/IT-Management_2007-05_Automatisierte_Effizienz_p001.txt",
-                "rb",
-            ) as file:
-                content = file.read()
-                suggestion = UnicodeDammit(content)
-                encoding = suggestion.original_encoding
-                print(encoding)
+        with open(
+            "/Volumes/bitplan/scan/2007/.ocr/IT-Management_2007-05_Automatisierte_Effizienz_p001.txt",
+            "rb",
+        ) as file:
+            content = file.read()
+            suggestion = UnicodeDammit(content)
+            encoding = suggestion.original_encoding
+            print(encoding)
