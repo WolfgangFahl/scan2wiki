@@ -4,11 +4,14 @@ Created on 2020-08-19
 @author: wf
 """
 
+import datetime
+import json
 import logging
 import os
 import sys
 import time
 from typing import Any, Dict, List, Type
+
 from lodstorage.lod import LOD
 from lodstorage.sparql import SPARQL
 from lodstorage.sql import SQLDB
@@ -72,6 +75,9 @@ class EntityManager():
         self.list=[]
         self.lod=[]
         self.listName = listName
+        # This ensures self.<listName> (e.g., self.archives) points to self.list
+        setattr(self, self.listName, self.list)
+
         self.clazz = clazz
         self.tableName = tableName
         self.handleInvalidListTypes = handleInvalidListTypes
@@ -386,10 +392,80 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
         for record in listOfDicts:
             entity = self.clazz.from_dict(record)
             self.list.append(entity)
-        pass
+        # Update the alias to point to the new list object
+        if self.listName:
+            setattr(self, self.listName, self.list)
+
 
     def getList(self):
         return self.list
+
+    def to_json(
+        self,
+        pretty: bool = False,
+        sort_keys: bool = False,
+        limit_to_sample_fields: bool = True,
+        lod: List[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Serialize the current entities to a JSON string.
+
+        Args:
+            pretty (bool): If True, pretty-print with indentation.
+            sort_keys (bool): If True, sort keys in output.
+            limit_to_sample_fields (bool): If True, only serialize fields declared
+                                           in the class `getSamples` method.
+            lod (list): Optional list of dicts to serialize; if None, uses self.getLoD().
+
+        Returns:
+            str: JSON string representing the list of entities.
+        """
+        if lod is None:
+            lod = self.getLoD()
+
+        # Filter fields based on getSamples logic
+        if limit_to_sample_fields and self.clazz is not None:
+            samples = self.get_samples_for_class(self.clazz)
+            if samples:
+                # Collect all unique keys defined in all sample records
+                # This handles cases where samples might have optional fields
+                valid_keys = set().union(*(sample.keys() for sample in samples))
+
+                # Filter the lod to only contain keys present in the samples
+                lod = [
+                    {key: record.get(key) for key in valid_keys if key in record}
+                    for record in lod
+                ]
+
+        def _default(obj):
+            # Handle common non-JSON-native types gracefully
+            if isinstance(obj, (datetime.datetime, datetime.date)):
+                return obj.isoformat()
+            if isinstance(obj, set):
+                return list(obj)
+            # Respect custom conversion hooks if present
+            if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
+                return obj.to_dict()
+            if hasattr(obj, "to_json") and callable(getattr(obj, "to_json")):
+                # In case nested entities implement to_json returning a string,
+                # we unpack it to avoid double serialization strings
+                try:
+                    return json.loads(obj.to_json())
+                except Exception:
+                    pass
+            if hasattr(obj, "__dict__"):
+                return obj.__dict__
+            # Fallback to string
+            return str(obj)
+
+        json_str = json.dumps(
+            lod,
+            ensure_ascii=False,
+            indent=2 if pretty else None,
+            sort_keys=sort_keys,
+            default=_default,
+        )
+        return json_str
 
     def getLookup(self, attrName: str, withDuplicates: bool = False) -> tuple:
         """
@@ -407,19 +483,33 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
 
         return lookup, duplicates
 
-    def getLoD(self):
+    def getLoD(self, limit_to_sample_fields: bool = False) -> List[Dict[str, Any]]:
         """
         Return the LoD of the entities in the list
 
+        Args:
+            limit_to_sample_fields(bool): if True filter key by getSamples()
+
         Return:
             list: a list of Dicts
-
         """
         lod = []
+        valid_keys = None
+
+        # Determine valid keys if filtering is requested
+        if limit_to_sample_fields and self.clazz is not None:
+            samples = self.get_samples_for_class(self.clazz)
+            if samples:
+                valid_keys = set().union(*(sample.keys() for sample in samples))
+
         for entity in self.getList():
-            # TODO - optionally filter by samples
-            lod.append(entity.__dict__)
+            record = entity.__dict__
+            if valid_keys:
+                # Filter dict to only include keys present in samples
+                record = {k: v for k, v in record.items() if k in valid_keys}
+            lod.append(record)
         return lod
+
 
     def store(
         self,

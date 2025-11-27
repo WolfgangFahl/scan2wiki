@@ -31,8 +31,7 @@ class TestDMS(Basetest):
         """
         am = ArchiveManager(mode="json")
         for archiveRecord in Archive.getSamples():
-            archive = Archive()
-            archive.fromDict(archiveRecord)
+            archive = Archive.from_dict(archiveRecord) # @UndefinedVariable
             am.getList().append(archive)
         return am
 
@@ -41,7 +40,7 @@ class TestDMS(Basetest):
         test the Archive concept
         """
         am = self.getSampleArchiveManager()
-        jsonStr = am.toJSON(limitToSampleFields=True)
+        jsonStr = am.to_json(limit_to_sample_fields=True)
         expectedNameValues = [
             '''"name": "media"''',
             '''"server": "media.bitplan.com"''',
@@ -115,7 +114,7 @@ class TestDMS(Basetest):
             _elapsed, elapsedMessage = profiler.time()
             print(f"... {len(ocr_text):6} {elapsedMessage}")
 
-    @unittest.skipIf(self.inPublicCI(), "Skipping in public CI environment")
+    @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
     def testUnicodeDammit(self):
         """
         """
