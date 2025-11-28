@@ -17,8 +17,125 @@ from lodstorage.sparql import SPARQL
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
 
+class JsonCache():
+    """
+    JSON cache mixin
+    """
+    def store_to_json_file(
+        self,
+        cacheFile: str,
+        listOfDicts: List[Dict[str, Any]] = None,
+        pretty: bool = True
+    ):
+        """
+        Store the current list of entities to a JSON file.
 
-class EntityManager():
+        Args:
+            cacheFile (str): The path to the file where JSON data should be stored.
+            listOfDicts (List[Dict[str, Any]]): Optional list of dicts to store;
+                                                 if None, uses self.getLoD().
+            pretty (bool): If True, format the JSON with indentation.
+        """
+
+        # Ensure the directory exists
+        dir_path = os.path.dirname(cacheFile)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
+
+        # Serialize using internal to_json to handle dates and custom types correctly.
+        # We set limit_to_sample_fields=False because a cache store should typically
+        # preserve all available data, not just fields defined in samples.
+        json_str = self.to_json(lod=listOfDicts,pretty=pretty, limit_to_sample_fields=False)
+
+        with open(cacheFile, "w", encoding="utf-8") as f:
+            f.write(json_str)
+
+    def read_lod_from_json_file(self, cacheFile: str) -> List[Dict[str, Any]]:
+        """
+        Read a list of dictionaries from a JSON file.
+
+        Args:
+            cacheFile (str): The path to the JSON file.
+
+        Returns:
+            list: A list of dictionaries loaded from the JSON file.
+        """
+        if not os.path.isfile(cacheFile):
+            return []
+
+        with open(cacheFile, "r", encoding="utf-8") as f:
+            lod = json.load(f)
+
+        return lod
+
+    def to_json(
+        self,
+        pretty: bool = False,
+        sort_keys: bool = False,
+        limit_to_sample_fields: bool = True,
+        lod: List[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Serialize the current entities to a JSON string.
+
+        Args:
+            pretty (bool): If True, pretty-print with indentation.
+            sort_keys (bool): If True, sort keys in output.
+            limit_to_sample_fields (bool): If True, only serialize fields declared
+                                           in the class `getSamples` method.
+            lod (list): Optional list of dicts to serialize; if None, uses self.getLoD().
+
+        Returns:
+            str: JSON string representing the list of entities.
+        """
+        if lod is None:
+            lod = self.getLoD()
+
+        # Filter fields based on getSamples logic
+        if limit_to_sample_fields and self.clazz is not None:
+            samples = self.get_samples_for_class(self.clazz)
+            if samples:
+                # Collect all unique keys defined in all sample records
+                # This handles cases where samples might have optional fields
+                valid_keys = set().union(*(sample.keys() for sample in samples))
+
+                # Filter the lod to only contain keys present in the samples
+                lod = [
+                    {key: record.get(key) for key in valid_keys if key in record}
+                    for record in lod
+                ]
+
+        def _default(obj):
+            # Handle common non-JSON-native types gracefully
+            if isinstance(obj, (datetime.datetime, datetime.date)):
+                return obj.isoformat()
+            if isinstance(obj, set):
+                return list(obj)
+            # Respect custom conversion hooks if present
+            if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
+                return obj.to_dict()
+            if hasattr(obj, "to_json") and callable(getattr(obj, "to_json")):
+                # In case nested entities implement to_json returning a string,
+                # we unpack it to avoid double serialization strings
+                try:
+                    return json.loads(obj.to_json())
+                except Exception:
+                    pass
+            if hasattr(obj, "__dict__"):
+                return obj.__dict__
+            # Fallback to string
+            return str(obj)
+
+        json_str = json.dumps(
+            lod,
+            ensure_ascii=False,
+            indent=2 if pretty else None,
+            sort_keys=sort_keys,
+            default=_default,
+        )
+        return json_str
+
+class EntityManager(JsonCache):
     """
     generic entity manager
     """
@@ -85,8 +202,7 @@ class EntityManager():
 
         cacheFile = self.getCacheFile(config=config, mode=config.mode)
         self.showProgress(
-            "Creating %smanager(%s) for %s using cache %s"
-            % (self.entityName, config.mode, self.name, cacheFile)
+            f"Creating {self.entityName}manager({config.mode}) for {self.name} using cache {cacheFile}"
         )
         if config.mode is StoreMode.SPARQL:
             if config.endpoint is None:
@@ -154,7 +270,7 @@ class EntityManager():
             extension = f".{mode.name.lower()}"
             cachepath = f"{cachedir}/{self.name}-{self.listName}{extension}"
         elif mode is StoreMode.SPARQL:
-            cachepath = f"SPAQRL {self.name}:{config.endpoint}"
+            cachepath = f"SPARQL {self.name}:{config.endpoint}"
         elif mode is StoreMode.SQL:
             cachepath = f"{cachedir}/{self.name}.db"
         else:
@@ -266,7 +382,7 @@ GROUP by ?source
                     # e.g. sqlite3.OperationalError: no such table: Event_crossref
                     pass
         else:
-            raise Exception("unsupported mode %s" % self.mode)
+            raise Exception(f"unsupported store mode {mode}")
         return result
 
     def fromCache(
@@ -336,7 +452,7 @@ GROUP by ?source
 You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to be able to use fromStore"""
             raise NotImplementedError(err_msg)
         elif mode is StoreMode.JSON:
-            listOfDicts = self.readLodFromJsonFile(cacheFile)
+            listOfDicts = self.read_lod_from_json_file(cacheFile)
             pass
         elif mode is StoreMode.SPARQL:
             # @FIXME make abstract
@@ -367,7 +483,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             sqlDB.close()
             pass
         else:
-            raise Exception("unsupported store mode %s" % self.mode)
+            raise Exception(f"unsupported store mode {self.config.mode}")
 
         self.showProgress(
             "read %d %s from %s in %5.1f s"
@@ -400,72 +516,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
     def getList(self):
         return self.list
 
-    def to_json(
-        self,
-        pretty: bool = False,
-        sort_keys: bool = False,
-        limit_to_sample_fields: bool = True,
-        lod: List[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Serialize the current entities to a JSON string.
 
-        Args:
-            pretty (bool): If True, pretty-print with indentation.
-            sort_keys (bool): If True, sort keys in output.
-            limit_to_sample_fields (bool): If True, only serialize fields declared
-                                           in the class `getSamples` method.
-            lod (list): Optional list of dicts to serialize; if None, uses self.getLoD().
-
-        Returns:
-            str: JSON string representing the list of entities.
-        """
-        if lod is None:
-            lod = self.getLoD()
-
-        # Filter fields based on getSamples logic
-        if limit_to_sample_fields and self.clazz is not None:
-            samples = self.get_samples_for_class(self.clazz)
-            if samples:
-                # Collect all unique keys defined in all sample records
-                # This handles cases where samples might have optional fields
-                valid_keys = set().union(*(sample.keys() for sample in samples))
-
-                # Filter the lod to only contain keys present in the samples
-                lod = [
-                    {key: record.get(key) for key in valid_keys if key in record}
-                    for record in lod
-                ]
-
-        def _default(obj):
-            # Handle common non-JSON-native types gracefully
-            if isinstance(obj, (datetime.datetime, datetime.date)):
-                return obj.isoformat()
-            if isinstance(obj, set):
-                return list(obj)
-            # Respect custom conversion hooks if present
-            if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
-                return obj.to_dict()
-            if hasattr(obj, "to_json") and callable(getattr(obj, "to_json")):
-                # In case nested entities implement to_json returning a string,
-                # we unpack it to avoid double serialization strings
-                try:
-                    return json.loads(obj.to_json())
-                except Exception:
-                    pass
-            if hasattr(obj, "__dict__"):
-                return obj.__dict__
-            # Fallback to string
-            return str(obj)
-
-        json_str = json.dumps(
-            lod,
-            ensure_ascii=False,
-            indent=2 if pretty else None,
-            sort_keys=sort_keys,
-            default=_default,
-        )
-        return json_str
 
     def getLookup(self, attrName: str, withDuplicates: bool = False) -> tuple:
         """
@@ -479,7 +530,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
         Returns:
             A tuple: (lookup_dict, duplicates_dict).
         """
-        lookup, duplicates = LOD.getLookup(self.lod, attrName, withDuplicates=withDuplicates)
+        lookup, duplicates = LOD.getLookup(self.getLoD(), attrName, withDuplicates=withDuplicates)
 
         return lookup, duplicates
 
@@ -532,10 +583,10 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             replace(bool): if True allow replace for insert
 
         Return:
-            str: The cachefile being used
+            str: The cache_file being used
         """
         lod = self.getLoD()
-        return self.storeLoD(
+        cache_file= self.storeLoD(
             lod,
             limit=limit,
             batchSize=batchSize,
@@ -544,6 +595,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             sampleRecordCount=sampleRecordCount,
             replace=replace,
         )
+        return cache_file
 
     def storeLoD(
         self,
@@ -586,9 +638,11 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
                 f"storing {len(listOfDicts)} {self.entityPluralName} for {self.name} to cache {cacheFile}"
             )
             if mode is StoreMode.JSONPICKLE:
-                self.writeJsonPickle(cacheFile)
+                raise NotImplementedError(
+                    "The JSONPICKLE store mode has been deprecated. Use StoreMode.SQL or StoreMode.JSON."
+                )
             if mode is StoreMode.JSON:
-                self.storeToJsonFile(cacheFile)
+                self.store_to_json_file(cacheFile,listOfDicts=listOfDicts)
                 pass
         elif mode is StoreMode.SPARQL:
             startTime = time.time()
