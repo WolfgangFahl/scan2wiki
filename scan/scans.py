@@ -123,9 +123,9 @@ class Scans:
         doc = Document()
         doc.fromFile(self.scandir, path, local=True, withOcr=True)
 
-        fileurl, file_link = self.get_file_link(path)
+        _fileurl, file_link = self.get_file_link(path)
 
-        text_filename = f"{doc.baseName}.txt"
+        text_filename = f"{doc.basename}.txt"
         text_path = self.get_full_path(text_filename)
 
         text_link = ""
@@ -134,7 +134,7 @@ class Scans:
 
         if os.path.exists(text_path):
             text_size = os.path.getsize(text_path)
-            text_url, text_link = self.get_file_link(text_filename)
+            _text_url, text_link = self.get_file_link(text_filename)
             text_head = doc.get_text_head(3)
 
         scan_file = {
