@@ -65,10 +65,13 @@ class BaseWebcamForm:
             # If predefined webcams exist, show a selector
             if self.webcams:
                 # The select shows friendly names (keys) and stores the URL (values)
+                # Swap dict: {url: name} so select displays names but stores URLs
+                swapped = {url: name for name, url in self.webcams.items()}
+
                 self.webcam_select = (
                     self.solution.add_select(
                         title="Webcam",
-                        selection=self.webcams,
+                        selection=swapped,
                     )
                     .bind_value(self, "url")  # keep in sync with self.url
                 )
