@@ -651,7 +651,8 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
                     "The JSONPICKLE store mode has been deprecated. Use StoreMode.SQL or StoreMode.JSON."
                 )
             if mode is StoreMode.JSON:
-                self.store_to_json_file(cacheFile,listOfDicts=listOfDicts)
+                wrapped_lod = {self.listName: listOfDicts}
+                self.store_to_json_file(cacheFile,listOfDicts=wrapped_lod)
                 pass
         elif mode is StoreMode.SPARQL:
             startTime = time.time()

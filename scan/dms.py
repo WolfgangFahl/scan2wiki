@@ -323,8 +323,8 @@ class Document:
         self.created = self.lastModified
         self.timestampStr = DMSStorage.getTimeStr(self.fullpath)
         self.fileName = Path(self.fullpath).name
-        self.baseName = Path(self.fullpath).stem
-        self.pageTitle = f"{self.baseName}"
+        self.basename = Path(self.fullpath).stem
+        self.pageTitle = f"{self.basename}"
 
         self.categories = f"{datetime.now().year}"
         self.topic = "OCRDocument"
