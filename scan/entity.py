@@ -1,5 +1,6 @@
 """
 Created on 2020-08-19
+Updated 2025-11-28
 
 @author: wf
 """
@@ -24,16 +25,15 @@ class JsonCache():
     def store_to_json_file(
         self,
         cacheFile: str,
-        listOfDicts: List[Dict[str, Any]] = None,
+        dod: Any = None,
         pretty: bool = True
     ):
         """
-        Store the current list of entities to a JSON file.
+        Store the current data (dod) or list of entities to a JSON file.
 
         Args:
             cacheFile (str): The path to the file where JSON data should be stored.
-            listOfDicts (List[Dict[str, Any]]): Optional list of dicts to store;
-                                                 if None, uses self.getLoD().
+            dod (Any): Data Object Dictionary (or List) to store. If None, uses self.to_json()'s default.
             pretty (bool): If True, format the JSON with indentation.
         """
 
@@ -43,9 +43,8 @@ class JsonCache():
             os.makedirs(dir_path, exist_ok=True)
 
         # Serialize using internal to_json to handle dates and custom types correctly.
-        # We set limit_to_sample_fields=False because a cache store should typically
-        # preserve all available data, not just fields defined in samples.
-        json_str = self.to_json(lod=listOfDicts,pretty=pretty, limit_to_sample_fields=False)
+        # We pass dod explicitly.
+        json_str = self.to_json(dod=dod, pretty=pretty)
 
         with open(cacheFile, "w", encoding="utf-8") as f:
             f.write(json_str)
@@ -73,7 +72,7 @@ class JsonCache():
         pretty: bool = False,
         sort_keys: bool = False,
         limit_to_sample_fields: bool = True,
-        lod: List[Dict[str, Any]] = None,
+        dod: Any = None,
     ) -> str:
         """
         Serialize the current entities to a JSON string.
@@ -81,29 +80,25 @@ class JsonCache():
         Args:
             pretty (bool): If True, pretty-print with indentation.
             sort_keys (bool): If True, sort keys in output.
-            limit_to_sample_fields (bool): If True, only serialize fields declared
-                                           in the class `getSamples` method.
-            lod (list): Optional list of dicts to serialize; if None, uses self.getLoD().
+            limit_to_sample_fields (bool): If True, request filtered data from getLoD (if supported).
+            dod (Any): dict of list of dicts (or other structure) to serialize. If None, fetches from self.
 
         Returns:
             str: JSON string representing the list of entities.
         """
-        if lod is None:
-            lod = self.getLoD()
 
-        # Filter fields based on getSamples logic
-        if limit_to_sample_fields and self.clazz is not None:
-            samples = self.get_samples_for_class(self.clazz)
-            if samples:
-                # Collect all unique keys defined in all sample records
-                # This handles cases where samples might have optional fields
-                valid_keys = set().union(*(sample.keys() for sample in samples))
-
-                # Filter the lod to only contain keys present in the samples
-                lod = [
-                    {key: record.get(key) for key in valid_keys if key in record}
-                    for record in lod
-                ]
+        if dod is None:
+            # If no data provided, fetch from self
+            # Delegate filtering logic to getLoD if available
+            if hasattr(self, 'getLoD'):
+                lod = self.getLoD(limit_to_sample_fields=limit_to_sample_fields)
+                # Wrap in dictionary if listName is present (compatibility with Wrapped List style)
+                if hasattr(self, "listName") and self.listName:
+                     dod = {self.listName: lod}
+                else:
+                     dod = lod
+            else:
+                dod = []
 
         def _default(obj):
             # Handle common non-JSON-native types gracefully
@@ -114,10 +109,12 @@ class JsonCache():
             # Respect custom conversion hooks if present
             if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
                 return obj.to_dict()
+            # Avoid recursive loop with to_json if it points back to this method on the same type of object without args
+            # But if it's a nested entity, it might need serialization
             if hasattr(obj, "to_json") and callable(getattr(obj, "to_json")):
-                # In case nested entities implement to_json returning a string,
-                # we unpack it to avoid double serialization strings
+                # Be careful not to infinitely recurse if obj is self or similar type
                 try:
+                    # We assume to_json returns a string, so we parse it back to embed as object
                     return json.loads(obj.to_json())
                 except Exception:
                     pass
@@ -127,7 +124,7 @@ class JsonCache():
             return str(obj)
 
         json_str = json.dumps(
-            lod,
+            dod,
             ensure_ascii=False,
             indent=2 if pretty else None,
             sort_keys=sort_keys,
@@ -183,13 +180,6 @@ class EntityManager(JsonCache):
         if debug:
             config.debug = debug
         self.config = config
-        #super(EntityManager, self).__init__(
-        #    listName=listName,
-        #    clazz=clazz,
-        #    tableName=tableName,
-        #    handleInvalidListTypes=handleInvalidListTypes,
-        #    filterInvalidListTypes=filterInvalidListTypes,
-        #)
         self.list=[]
         self.lod=[]
         self.listName = listName
@@ -240,7 +230,6 @@ class EntityManager(JsonCache):
             # Call the getSamples class method
             lod=cls.getSamples()
         else:
-            # Handle cases where the class does not have the required method
             # Handle cases where the class does not have the required method
             self.logger.warning("Class %s does not implement getSamples().", cls.__name__)
         return lod
@@ -319,7 +308,8 @@ class EntityManager(JsonCache):
             EntityInfo: the entity information such as CREATE Table command
         """
         # if we get no data we try to get the schema from the samples
-        if listOfDicts is None:
+        # Handle both None and empty list []
+        if not listOfDicts:
             listOfDicts = self.get_samples_for_class(self.clazz)
             if not listOfDicts:
                 msg=f"No sample data available for {self.tableName}"
@@ -385,7 +375,6 @@ GROUP by ?source
                     if self.debug:
                         print(msg, file=sys.stderr)
                         sys.stderr.flush()
-                    # e.g. sqlite3.OperationalError: no such table: Event_crossref
                     pass
         else:
             raise Exception(f"unsupported store mode {mode}")
@@ -454,14 +443,23 @@ GROUP by ?source
         )
         mode = self.config.mode
         if mode is StoreMode.JSONPICKLE:
-            err_msg=f"""The JSONPICKLE store mode has been deprecated for
+            err_msg=f"""The JSONPICKLE store mode has been deprecated.
 You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to be able to use fromStore"""
             raise NotImplementedError(err_msg)
         elif mode is StoreMode.JSON:
             listOfDicts = self.read_lod_from_json_file(cacheFile)
-            # Fix for wrapped lists e.g. {"archives": [...]}
-            if isinstance(listOfDicts, dict) and self.listName in listOfDicts:
-                listOfDicts = listOfDicts[self.listName]
+            # Fix for wrapped lists e.g. {"archives": [...]} or {"documents": [...]}
+            if isinstance(listOfDicts, dict):
+                if self.listName in listOfDicts:
+                    listOfDicts = listOfDicts[self.listName]
+                else:
+                    # If strictly expecting a list but got a valid dict without the key,
+                    # we fail safe to empty list to avoid AttributeError downstream
+                    self.logger.warning(f"JSON loaded from {cacheFile} is a dict but key '{self.listName}' is missing. Available keys: {list(listOfDicts.keys())}")
+                    listOfDicts = []
+
+            if listOfDicts is None:
+                listOfDicts = []
             pass
         elif mode is StoreMode.SPARQL:
             # @FIXME make abstract
@@ -514,9 +512,14 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             listOfDicts: The list of dictionaries to load.
         """
         self.list=[]
-        for record in listOfDicts:
-            entity = self.clazz.from_dict(record)
-            self.list.append(entity)
+        if listOfDicts:
+            for record in listOfDicts:
+                if isinstance(record, dict):
+                    entity = self.clazz.from_dict(record)
+                    self.list.append(entity)
+                else:
+                    self.logger.warning(f"Skipping invalid record in setListFromLoD: {record} (expected dict)")
+
         # Update the alias to point to the new list object
         if self.listName:
             setattr(self, self.listName, self.list)
@@ -525,21 +528,43 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
     def getList(self):
         return self.list
 
-
-
     def getLookup(self, attrName: str, withDuplicates: bool = False) -> tuple:
         """
-        Creates a lookup dictionary by the given attribute name, delegating
-        the task to the static LOD helper.
+        Creates a lookup dictionary by the given attribute name.
+
+        This indexes the **entity objects** (e.g., Archive instances) rather
+        than their dictionary representations, ensuring attributes like .name
+        are accessible.
 
         Args:
             attrName: The attribute name to use as the key (e.g., 'name').
-            withDuplicates: Whether to return a dictionary of items that had duplicates.
+            withDuplicates: Whether to return information about duplicates.
 
         Returns:
-            A tuple: (lookup_dict, duplicates_dict).
+            A tuple: (lookup_dict, duplicates_list).
+                     lookup_dict maps { key: object }.
+                     duplicates_list contains objects that shared a key.
         """
-        lookup, duplicates = LOD.getLookup(self.getLoD(), attrName, withDuplicates=withDuplicates)
+        lookup = {}
+        duplicates = []
+
+        for entity in self.getList():
+            if hasattr(entity, attrName):
+                key = getattr(entity, attrName)
+                if key in lookup:
+                    if withDuplicates:
+                         # Start collecting duplicate objects
+                         if lookup[key] not in duplicates:
+                             duplicates.append(lookup[key])
+                         duplicates.append(entity)
+                    # We purposefully overwrite or keep based on policy;
+                    # Standard LOD.getLookup behavior overwrites in the main dict
+                    # but here we keep the first one? No, let's overwrite to match standard dict behavior
+                    # unless strictly required otherwise.
+                    # But duplicates list will catch conflicts.
+                    lookup[key] = entity
+                else:
+                    lookup[key] = entity
 
         return lookup, duplicates
 
@@ -651,8 +676,9 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
                     "The JSONPICKLE store mode has been deprecated. Use StoreMode.SQL or StoreMode.JSON."
                 )
             if mode is StoreMode.JSON:
+                # Wrap list in dictionary for JSON compatibility
                 wrapped_lod = {self.listName: listOfDicts}
-                self.store_to_json_file(cacheFile,listOfDicts=wrapped_lod)
+                self.store_to_json_file(cacheFile, dod=wrapped_lod)
                 pass
         elif mode is StoreMode.SPARQL:
             startTime = time.time()
