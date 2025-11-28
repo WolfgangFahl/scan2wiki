@@ -15,12 +15,8 @@ class TestDMS(Basetest):
     """
     test document management system handling
     """
-
-    def setUp(self):
-        """
-        setup this test
-        """
-        Basetest.setUp(self)
+    def setUp(self, debug=True, profile=True):
+        Basetest.setUp(self, debug=debug, profile=profile)
         if self.inPublicCI():
             am = self.getSampleArchiveManager()
             am.store()
