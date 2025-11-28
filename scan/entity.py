@@ -458,6 +458,9 @@ You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to b
             raise NotImplementedError(err_msg)
         elif mode is StoreMode.JSON:
             listOfDicts = self.read_lod_from_json_file(cacheFile)
+            # Fix for wrapped lists e.g. {"archives": [...]}
+            if isinstance(listOfDicts, dict) and self.listName in listOfDicts:
+                listOfDicts = listOfDicts[self.listName]
             pass
         elif mode is StoreMode.SPARQL:
             # @FIXME make abstract
