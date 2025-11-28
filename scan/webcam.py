@@ -62,8 +62,24 @@ class BaseWebcamForm:
         with ui.row() as self.markup_row:
             pass
         with ui.row() as self.preview_row:
-            # Simple input for URL, could be a select if self.webcams is populated
-            self.webcam_input = ui.input(value=self.url, label="Webcam URL").bind_value(self, "url")
+            # If predefined webcams exist, show a selector
+            if self.webcams:
+                # The select shows friendly names (keys) and stores the URL (values)
+                self.webcam_select = (
+                    self.solution.add_select(
+                        title="Webcam",
+                        selection=self.webcams,
+                        value=self.url,  # default (already set in __init__)
+                    )
+                    .bind_value(self, "url")  # keep in sync with self.url
+                )
+
+            # Always show manual input for custom URLs
+            self.webcam_input = (
+                ui.input(value=self.url, label="Webcam URL", placeholder="http(s)://...")
+                .bind_value(self, "url")  # bound to the same attribute as the select
+            )
+
             self.image_link = ui.html().style(Link.blue)
             self.preview = ui.html()
 
