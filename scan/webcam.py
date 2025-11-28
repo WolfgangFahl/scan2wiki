@@ -80,7 +80,9 @@ class BaseWebcamForm:
             self.webcam_input = (
                 ui.input(value=self.url, label="Webcam URL", placeholder="http(s)://...")
                 .bind_value(self, "url")  # bound to the same attribute as the select
+                .props("size=60")
             )
+
 
             self.image_link = ui.html().style(Link.blue)
             self.preview = ui.html()
