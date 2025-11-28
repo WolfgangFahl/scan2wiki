@@ -172,6 +172,7 @@ class EntityManager(JsonCache):
         self.name = name
         self.entityName = entityName
         self.entityPluralName = entityPluralName
+        self.debug=debug
         if listName is None:
             listName = entityPluralName
         if tableName is None:
