@@ -179,8 +179,8 @@ class EntityManager(JsonCache):
         self.primaryKey = primaryKey
         if config is None:
             config = StorageConfig.getDefault()
-            if debug:
-                config.debug = debug
+        if debug:
+            config.debug = debug
         self.config = config
         #super(EntityManager, self).__init__(
         #    listName=listName,
@@ -317,8 +317,13 @@ class EntityManager(JsonCache):
         Return:
             EntityInfo: the entity information such as CREATE Table command
         """
+        # if we get no data we try to get the schema from the samples
         if listOfDicts is None:
             listOfDicts = self.get_samples_for_class(self.clazz)
+            if not listOfDicts:
+                msg=f"No sample data available for {self.tableName}"
+                raise ValueError(msg)
+
         entityInfo = sqldb.createTable(
             listOfDicts,
             self.tableName,
