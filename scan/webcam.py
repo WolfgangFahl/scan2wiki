@@ -69,7 +69,6 @@ class BaseWebcamForm:
                     self.solution.add_select(
                         title="Webcam",
                         selection=self.webcams,
-                        value=self.url,  # default (already set in __init__)
                     )
                     .bind_value(self, "url")  # keep in sync with self.url
                 )
