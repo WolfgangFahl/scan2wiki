@@ -31,6 +31,7 @@ class TestDMS(Basetest):
             am.getList().append(archive)
         return am
 
+    @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment EntityManager incompatible")
     def testArchive(self):
         """
         test the Archive concept
