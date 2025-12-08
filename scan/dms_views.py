@@ -9,6 +9,7 @@ from typing import Any
 from ngwidgets.progress import NiceguiProgressbar
 from ngwidgets.widgets import Link
 from nicegui import run, ui
+
 from scan.dms import Archive
 
 
@@ -20,11 +21,11 @@ class EntityView:
 
     def __init__(self, solution, entity: Any):
         """
-            Initializes the EntityView.
+        Initializes the EntityView.
 
-            Args:
-                solution: The main application solution/context object.
-                entity: The data entity to display (a dataclass instance).
+        Args:
+            solution: The main application solution/context object.
+            entity: The data entity to display (a dataclass instance).
         """
         self.solution = solution
         self.entity = entity

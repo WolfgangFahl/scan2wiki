@@ -7,7 +7,9 @@ Created on 2023-11-17
 from ngwidgets.lod_grid import GridConfig, ListOfDictsGrid
 from ngwidgets.widgets import Link
 from nicegui import ui
+
 from scan.dms import EntityManager
+
 
 class EntityManagerView:
     """

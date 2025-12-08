@@ -22,7 +22,7 @@ class TestProduct(Basetest):
         Test adding products, storing and reloading them.
         """
         debug = self.debug
-        debug=True
+        debug = True
         # Test data setup
         examples = [
             Product(
@@ -51,14 +51,12 @@ class TestProduct(Basetest):
 
         # Save the products to a YAML file
         products.save_to_yaml_file(temp_file)
-        store_path=temp_file if use_temp else Products.store_path()
-
+        store_path = temp_file if use_temp else Products.store_path()
 
         # Optionally print the saved YAML file content for debugging
         if debug:
             with open(store_path, "r") as file:
                 print("Saved YAML content:", file.read())
-
 
         # load
         products = Products.ofYaml(store_path)

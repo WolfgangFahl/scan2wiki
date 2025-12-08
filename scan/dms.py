@@ -8,30 +8,30 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 """
 
-from collections import Counter
 import configparser
-from dataclasses import field, dataclass
-from datetime import datetime
 import getpass
 import logging
 import os
-from pathlib import Path
 import re
 import sys
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from basemkit.yamlable import lod_storable
 from bs4 import UnicodeDammit
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
-from scan.logger import Logger
-from scan.pdf import PDFExtractor
 from wikibot3rd.smw import SMWClient
 from wikibot3rd.wikiclient import WikiClient
 from wikibot3rd.wikipush import WikiPush
 from wikibot3rd.wikiuser import WikiUser
 
 from scan.entity import EntityManager
+from scan.logger import Logger
+from scan.pdf import PDFExtractor
 
 
 class Wiki(object):
@@ -115,6 +115,7 @@ class DMSStorage:
     """
     Document management system storage configuration
     """
+
     profile = True
     withShowProgress = True
 
@@ -245,6 +246,7 @@ class Document:
     )
 
     """
+
     # Archive and path information
     archiveName: str = ""  # e.g. "bitplan-scan"
     folderPath: str = ""  # e.g. "/bitplan/scan/inbox"
@@ -261,12 +263,16 @@ class Document:
     topic: str = ""  # e.g. "OCRDocument"
 
     # URL (PRIMARY KEY in SQLite)
-    url: str = ""  # e.g. "http://capri.bitplan.com/bitplan/scan/inbox/2025-02-23-13-37-39.pdf"
+    url: str = (
+        ""  # e.g. "http://capri.bitplan.com/bitplan/scan/inbox/2025-02-23-13-37-39.pdf"
+    )
 
     # Timestamps
     timestampStr: str = ""  # e.g. "2025-02-23 13:37:40"
     created: Optional[datetime] = None  # e.g. datetime(2025, 2, 23, 13, 37, 40, 378206)
-    lastModified: Optional[datetime] = None  # e.g. datetime(2025, 2, 23, 13, 37, 40, 378206)
+    lastModified: Optional[datetime] = (
+        None  # e.g. datetime(2025, 2, 23, 13, 37, 40, 378206)
+    )
 
     # File metadata
     size: int = 0  # e.g. 315358 (bytes)
@@ -276,7 +282,9 @@ class Document:
     ocrText: Optional[str] = None  # Extracted OCR text from document
 
     # Internal fields for string representation
-    fields: list = field(default_factory=lambda: ["archiveName","folderPath","fileName" ])
+    fields: list = field(
+        default_factory=lambda: ["archiveName", "folderPath", "fileName"]
+    )
 
     @classmethod
     def getSamples(cls):
@@ -428,7 +436,7 @@ class Document:
 
         return combinedText
 
-    def getOcrTextFromPath(self,ocrPath:str,withMultiPage:bool=False)->str:
+    def getOcrTextFromPath(self, ocrPath: str, withMultiPage: bool = False) -> str:
         """
         Attempts to read OCR text from a specified directory path.
 
@@ -442,11 +450,11 @@ class Document:
         Returns:
             The OCR text string if found, otherwise None.
         """
-        ocr_text=None
+        ocr_text = None
         if os.path.isdir(ocrPath):
             ocrFileName = f"{ocrPath}/{self.basename}.txt"
             if os.path.isfile(ocrFileName):
-                ocr_text= self.readTextFromFile(ocrFileName)
+                ocr_text = self.readTextFromFile(ocrFileName)
             elif withMultiPage:
                 ocr_text = self.readMultiPageOcrText(ocrPath)
         return ocr_text
@@ -464,12 +472,12 @@ class Document:
             The retrieved OCR text string, or None if no text could be found.
         """
         parent = Path(self.fullpath).parent.absolute()
-        ocr_text=self.getOcrTextFromPath(parent, withMultiPage=False)
+        ocr_text = self.getOcrTextFromPath(parent, withMultiPage=False)
         if ocr_text is None:
-            ocr_text=self.getOcrTextFromPath(parent / ".ocr", withMultiPage=True)
+            ocr_text = self.getOcrTextFromPath(parent / ".ocr", withMultiPage=True)
         if ocr_text is None:
-            ocr_text=self.getPDFText()
-        self.ocrText=ocr_text
+            ocr_text = self.getPDFText()
+        self.ocrText = ocr_text
         return self.ocrText
 
     def uploadFile(self, wikiId):
@@ -525,8 +533,9 @@ class Document:
 
         return pageContent
 
+
 @lod_storable
-class Folder():
+class Folder:
     """
     a Folder might be a filesystem folder or a category in a wiki.
     Maps to the SQLite table 'folder'.
@@ -541,6 +550,7 @@ class Folder():
       path TEXT
     )
     """
+
     # Archive information
     archiveName: str = ""  # e.g. "bitplan-scan"
 
@@ -550,7 +560,9 @@ class Folder():
     # Folder/Content metadata
     fileCount: int = 0  # Number of files/documents in the folder
     name: str = ""  # e.g. "2019" (folder name)
-    path: str = ""  # e.g. "/bitplan/scan/2019" (absolute path in the filesystem/archive)
+    path: str = (
+        ""  # e.g. "/bitplan/scan/2019" (absolute path in the filesystem/archive)
+    )
 
     # Timestamps
     lastModified: Optional[datetime] = None  # Last modification timestamp
@@ -688,6 +700,7 @@ class Folder():
             pass
         pass
 
+
 class DocumentManager(EntityManager):
     """
     manager for Documents
@@ -816,7 +829,7 @@ class FolderManager(EntityManager):
 
 
 @lod_storable
-class Archive():
+class Archive:
     """
     An Archive might be a filesystem on a server or a (semantic) MediaWiki.
     Maps to the SQLite table 'archive'.
@@ -841,8 +854,14 @@ class Archive():
 
     # Internal fields for string representation (optional)
     fields: list = field(
-        default_factory=lambda: ["name", "server", "url", "folderCount", "documentCount"],
-        init=False
+        default_factory=lambda: [
+            "name",
+            "server",
+            "url",
+            "folderCount",
+            "documentCount",
+        ],
+        init=False,
     )
 
     def __post_init__(self):

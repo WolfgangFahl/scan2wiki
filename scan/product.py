@@ -58,6 +58,7 @@ class Product:
         html += f"</div>"
         return html
 
+
 @lod_storable
 class Products:
     """
@@ -69,11 +70,16 @@ class Products:
         products_by_asin (Dict[str, Product]): Dictionary mapping ASIN to products.
         products_by_gtin (Dict[str, Product]): Dictionary mapping gtin to products.
     """
+
     products: List[Product] = field(default_factory=list)
 
     # transient indexes (not persisted)
-    products_by_asin: Dict[str, Product] = field(init=False, repr=False, default_factory=dict)
-    products_by_gtin: Dict[str, Product] = field(init=False, repr=False, default_factory=dict)
+    products_by_asin: Dict[str, Product] = field(
+        init=False, repr=False, default_factory=dict
+    )
+    products_by_gtin: Dict[str, Product] = field(
+        init=False, repr=False, default_factory=dict
+    )
 
     def __post_init__(self):
         """
@@ -86,19 +92,17 @@ class Products:
         self.products_by_asin = {p.asin: p for p in self.products if p.asin}
         self.products_by_gtin = {p.gtin: p for p in self.products if p.gtin}
 
-
     @classmethod
-    def store_path(cls)->str:
-        yaml_path=expanduser("~/.scan2wiki/products.yaml")
+    def store_path(cls) -> str:
+        yaml_path = expanduser("~/.scan2wiki/products.yaml")
         return yaml_path
 
     @classmethod
-    def ofYaml(cls, yaml_path: str=None) -> 'Products':
+    def ofYaml(cls, yaml_path: str = None) -> "Products":
         if yaml_path is None:
-            yaml_path=cls.store_path()
-        products=cls.load_from_yaml_file(yaml_path)
+            yaml_path = cls.store_path()
+        products = cls.load_from_yaml_file(yaml_path)
         return products
-
 
     def add_product(self, product: Product):
         """
@@ -165,5 +169,3 @@ class Products:
             }
             lod.append(product_dict)
         return lod
-
-

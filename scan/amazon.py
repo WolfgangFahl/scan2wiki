@@ -82,7 +82,9 @@ class Amazon:
 
             # Only create a Product if we at least found a title
             if title:
-                products.append(Product(title=title, image_url=image_url, price=price, asin=asin))
+                products.append(
+                    Product(title=title, image_url=image_url, price=price, asin=asin)
+                )
 
         return products
 
@@ -121,10 +123,15 @@ class Amazon:
                     # First span contains the label, last span contains the value
                     # Clean the label: remove Unicode marks, newlines, and split on colon
                     label_raw = spans[0].get_text(strip=True)
-                    label = label_raw.split(':')[0].replace('\u200f', '').replace('\u200e', '').strip()
+                    label = (
+                        label_raw.split(":")[0]
+                        .replace("\u200f", "")
+                        .replace("\u200e", "")
+                        .strip()
+                    )
                     value = spans[-1].get_text(strip=True)
                     details[label] = value
-            product.details=details
+            product.details = details
             pass
 
     def get_headers(self):
@@ -160,9 +167,11 @@ class Amazon:
         response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
-            raise Exception(f"Request to {url} failed with status {response.status_code}")
+            raise Exception(
+                f"Request to {url} failed with status {response.status_code}"
+            )
 
-        soup= BeautifulSoup(response.content, "html.parser")
+        soup = BeautifulSoup(response.content, "html.parser")
         return soup
 
     def lookup_products(self, search_key: str):
@@ -173,6 +182,6 @@ class Amazon:
         soup = self.get_soup(url)
 
         product_list = self.extract_amazon_products(soup)
-        if len(product_list)>0:
+        if len(product_list) > 0:
             self.visit_product(product_list[0])
         return product_list

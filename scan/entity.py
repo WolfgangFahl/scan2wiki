@@ -18,16 +18,13 @@ from lodstorage.sparql import SPARQL
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
 
-class JsonCache():
+
+class JsonCache:
     """
     JSON cache mixin
     """
-    def store_to_json_file(
-        self,
-        cacheFile: str,
-        dod: Any = None,
-        pretty: bool = True
-    ):
+
+    def store_to_json_file(self, cacheFile: str, dod: Any = None, pretty: bool = True):
         """
         Store the current data (dod) or list of entities to a JSON file.
 
@@ -90,13 +87,13 @@ class JsonCache():
         if dod is None:
             # If no data provided, fetch from self
             # Delegate filtering logic to getLoD if available
-            if hasattr(self, 'getLoD'):
+            if hasattr(self, "getLoD"):
                 lod = self.getLoD(limit_to_sample_fields=limit_to_sample_fields)
                 # Wrap in dictionary if listName is present (compatibility with Wrapped List style)
                 if hasattr(self, "listName") and self.listName:
-                     dod = {self.listName: lod}
+                    dod = {self.listName: lod}
                 else:
-                     dod = lod
+                    dod = lod
             else:
                 dod = []
 
@@ -131,6 +128,7 @@ class JsonCache():
             default=_default,
         )
         return json_str
+
 
 class EntityManager(JsonCache):
     """
@@ -169,7 +167,7 @@ class EntityManager(JsonCache):
         self.name = name
         self.entityName = entityName
         self.entityPluralName = entityPluralName
-        self.debug=debug
+        self.debug = debug
         if listName is None:
             listName = entityPluralName
         if tableName is None:
@@ -180,8 +178,8 @@ class EntityManager(JsonCache):
         if debug:
             config.debug = debug
         self.config = config
-        self.list=[]
-        self.lod=[]
+        self.list = []
+        self.lod = []
         self.listName = listName
         # This ensures self.<listName> (e.g., self.archives) points to self.list
         setattr(self, self.listName, self.list)
@@ -225,13 +223,15 @@ class EntityManager(JsonCache):
         Returns:
             A list of dictionaries containing sample data for the class.
         """
-        lod=[]
-        if hasattr(cls, 'getSamples') and callable(getattr(cls, 'getSamples')):
+        lod = []
+        if hasattr(cls, "getSamples") and callable(getattr(cls, "getSamples")):
             # Call the getSamples class method
-            lod=cls.getSamples()
+            lod = cls.getSamples()
         else:
             # Handle cases where the class does not have the required method
-            self.logger.warning("Class %s does not implement getSamples().", cls.__name__)
+            self.logger.warning(
+                "Class %s does not implement getSamples().", cls.__name__
+            )
         return lod
 
     def showProgress(self, msg):
@@ -312,7 +312,7 @@ class EntityManager(JsonCache):
         if not listOfDicts:
             listOfDicts = self.get_samples_for_class(self.clazz)
             if not listOfDicts:
-                msg=f"No sample data available for {self.tableName}"
+                msg = f"No sample data available for {self.tableName}"
                 raise ValueError(msg)
 
         entityInfo = sqldb.createTable(
@@ -443,7 +443,7 @@ GROUP by ?source
         )
         mode = self.config.mode
         if mode is StoreMode.JSONPICKLE:
-            err_msg=f"""The JSONPICKLE store mode has been deprecated.
+            err_msg = f"""The JSONPICKLE store mode has been deprecated.
 You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to be able to use fromStore"""
             raise NotImplementedError(err_msg)
         elif mode is StoreMode.JSON:
@@ -455,7 +455,9 @@ You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to b
                 else:
                     # If strictly expecting a list but got a valid dict without the key,
                     # we fail safe to empty list to avoid AttributeError downstream
-                    self.logger.warning(f"JSON loaded from {cacheFile} is a dict but key '{self.listName}' is missing. Available keys: {list(listOfDicts.keys())}")
+                    self.logger.warning(
+                        f"JSON loaded from {cacheFile} is a dict but key '{self.listName}' is missing. Available keys: {list(listOfDicts.keys())}"
+                    )
                     listOfDicts = []
 
             if listOfDicts is None:
@@ -511,19 +513,20 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
         Args:
             listOfDicts: The list of dictionaries to load.
         """
-        self.list=[]
+        self.list = []
         if listOfDicts:
             for record in listOfDicts:
                 if isinstance(record, dict):
                     entity = self.clazz.from_dict(record)
                     self.list.append(entity)
                 else:
-                    self.logger.warning(f"Skipping invalid record in setListFromLoD: {record} (expected dict)")
+                    self.logger.warning(
+                        f"Skipping invalid record in setListFromLoD: {record} (expected dict)"
+                    )
 
         # Update the alias to point to the new list object
         if self.listName:
             setattr(self, self.listName, self.list)
-
 
     def getList(self):
         return self.list
@@ -553,10 +556,10 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
                 key = getattr(entity, attrName)
                 if key in lookup:
                     if withDuplicates:
-                         # Start collecting duplicate objects
-                         if lookup[key] not in duplicates:
-                             duplicates.append(lookup[key])
-                         duplicates.append(entity)
+                        # Start collecting duplicate objects
+                        if lookup[key] not in duplicates:
+                            duplicates.append(lookup[key])
+                        duplicates.append(entity)
                     # We purposefully overwrite or keep based on policy;
                     # Standard LOD.getLookup behavior overwrites in the main dict
                     # but here we keep the first one? No, let's overwrite to match standard dict behavior
@@ -595,7 +598,6 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             lod.append(record)
         return lod
 
-
     def store(
         self,
         limit=10000000,
@@ -620,7 +622,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
             str: The cache_file being used
         """
         lod = self.getLoD()
-        cache_file= self.storeLoD(
+        cache_file = self.storeLoD(
             lod,
             limit=limit,
             batchSize=batchSize,

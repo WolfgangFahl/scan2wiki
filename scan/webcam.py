@@ -11,11 +11,12 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-from ngwidgets.llm import VisionLLM
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
-from nicegui import background_tasks, ui
+from nicegui import background_tasks,ui
+from scan.image_cropper import ImageCropper
 
+from scan.ai_tasks import AITasks
 from scan.amazon import Amazon
 from scan.barcode import Barcode
 from scan.product import Products
@@ -42,6 +43,7 @@ class BaseWebcamForm:
         self.url = next(iter(self.webcams.values())) if self.webcams else ""
         self.shot_url = f"{self.url}"
         self.image_path = None
+        self.cropper=ImageCropper()
         self.setup_base_form()
 
     def notify(self, msg):
@@ -59,6 +61,7 @@ class BaseWebcamForm:
         """
         with ui.row() as self.button_row:
             self.scan_button = ui.button("Scan", on_click=self.run_scan)
+            self.cropper.setup_ui(self.shot_url)
         with ui.row() as self.markup_row:
             pass
         with ui.row() as self.preview_row:
@@ -68,21 +71,21 @@ class BaseWebcamForm:
                 # Swap dict: {url: name} so select displays names but stores URLs
                 swapped = {url: name for name, url in self.webcams.items()}
 
-                self.webcam_select = (
-                    self.solution.add_select(
-                        title="Webcam",
-                        selection=swapped,
-                    )
-                    .bind_value(self, "url")  # keep in sync with self.url
-                )
+                self.webcam_select = self.solution.add_select(
+                    title="Webcam",
+                    selection=swapped,
+                ).bind_value(
+                    self, "url"
+                )  # keep in sync with self.url
 
             # Always show manual input for custom URLs
             self.webcam_input = (
-                ui.input(value=self.url, label="Webcam URL", placeholder="http(s)://...")
+                ui.input(
+                    value=self.url, label="Webcam URL", placeholder="http(s)://..."
+                )
                 .bind_value(self, "url")  # bound to the same attribute as the select
                 .props("size=60")
             )
-
 
             self.image_link = ui.html().style(Link.blue)
             self.preview = ui.html()
@@ -257,12 +260,12 @@ class AIWebcamForm(BaseWebcamForm):
         """
         super().__init__(solution, webcams)
         self.args = solution.args
-
-        # Configure VisionLLM to use OpenRouter by default if keys are present
-        # This replaces the need for local scp/ssh since we use direct upload/base64
-        self.llm = VisionLLM(
-            base_url="https://openrouter.ai/api/v1",
-            model="google/gemini-2.0-flash-001"
+        self.ai_tasks = AITasks.get_instance()
+        self.selected_task = (
+            next(iter(self.ai_tasks.tasks)) if self.ai_tasks.tasks else None
+        )
+        self.selected_model = (
+            next(iter(self.ai_tasks.models)) if self.ai_tasks.models else "gpt-4o-mini"
         )
         self.setup_ai_form()
 
@@ -273,6 +276,26 @@ class AIWebcamForm(BaseWebcamForm):
         with self.button_row:
             self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
         with self.markup_row:
+            # Selector for AI tasks (prompts)
+            task_selection = {
+                task_name: task_config.description or task_name
+                for task_name, task_config in self.ai_tasks.tasks.items()
+            }
+            self.task_select = self.solution.add_select(
+                title="AI Task",
+                selection=task_selection,
+            ).bind_value(self, "selected_task")
+
+            # Selector for models
+            model_selection = {
+                model_name: model_config.name
+                for model_name, model_config in self.ai_tasks.models.items()
+            }
+            self.model_select = self.solution.add_select(
+                title="Model",
+                selection=model_selection,
+            ).bind_value(self, "selected_model")
+
             self.markup_result = ui.html("Markup will show here")
 
     async def analyze_image(self):
@@ -282,7 +305,7 @@ class AIWebcamForm(BaseWebcamForm):
         background_tasks.create(self.perform_analysis())
 
     def show_markup(self, msg: str, with_notify: bool = True):
-        #  display results
+        # display results
         with self.markup_row:
             self.markup_result.content = f"<pre>{msg}</pre>"
         if with_notify:
@@ -290,11 +313,11 @@ class AIWebcamForm(BaseWebcamForm):
 
     async def perform_analysis(self):
         """
-        Perform the AI analysis of the image using VisionLLM
+        Perform the AI analysis of the image using AITasks
         """
         try:
-            if not self.llm.available():
-                self.notify("LLM API Key not found (OpenAI or OpenRouter).")
+            if self.selected_task is None:
+                self.notify("No AI task selected.")
                 return
 
             if not self.image_path:
@@ -311,13 +334,15 @@ class AIWebcamForm(BaseWebcamForm):
             msg = "Starting LLM analysis ..."
             self.show_markup(msg)
 
-            prompt = """
-            Please OCR the image and format the response for MediaWiki markup.
-            The result will be copied to a page directly so do not wrap or add comments.
-            """
-
-            # VisionLLM now handles local paths via Base64 encoding automatically
-            markup = self.llm.analyze_image(image_path=full_image_path, prompt_text=prompt)
+            # Perform the task using AITasks
+            params = {
+                "image_path": full_image_path
+            }  # Add more params if needed for prompt templating
+            markup = self.ai_tasks.perform_task(
+                model_name=self.selected_model,
+                task_name=self.selected_task,
+                params=params,
+            )
             self.show_markup(markup, with_notify=False)
 
         except Exception as ex:

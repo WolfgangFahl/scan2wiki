@@ -7,6 +7,7 @@ Created on 2021-10-21
 import unittest
 
 from ngwidgets.basetest import Basetest
+
 from scan.dms import Archive, ArchiveManager, DocumentManager, FolderManager
 from scan.profiler import Profiler
 
@@ -15,6 +16,7 @@ class TestDMS(Basetest):
     """
     test document management system handling
     """
+
     def setUp(self, debug=True, profile=True):
         Basetest.setUp(self, debug=debug, profile=profile)
         if self.inPublicCI():
@@ -27,11 +29,14 @@ class TestDMS(Basetest):
         """
         am = ArchiveManager(mode="json")
         for archiveRecord in Archive.getSamples():
-            archive = Archive.from_dict(archiveRecord) # @UndefinedVariable
+            archive = Archive.from_dict(archiveRecord)  # @UndefinedVariable
             am.getList().append(archive)
         return am
 
-    @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment EntityManager incompatible")
+    @unittest.skipIf(
+        Basetest.inPublicCI(),
+        "Skipping in public CI environment EntityManager incompatible",
+    )
     def testArchive(self):
         """
         test the Archive concept
@@ -113,8 +118,7 @@ class TestDMS(Basetest):
 
     @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
     def testUnicodeDammit(self):
-        """
-        """
+        """ """
         from bs4 import UnicodeDammit
 
         with open(

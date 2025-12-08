@@ -276,6 +276,7 @@ class ScanSolution(InputWebSolution):
             with self.lod_grid.button_row:
                 self.work_button = ui.button("work", on_click=self.on_work_click)
                 self.workoptions = {
+                    "ai": False,
                     "ocr": False,
                     "job": False,
                     "upload": False,
