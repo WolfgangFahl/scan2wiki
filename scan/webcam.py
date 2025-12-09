@@ -158,6 +158,9 @@ class BaseWebcamForm:
         try:
             with self.preview_row:
                 if image_path:
+                    # Set the file_path for the cropper so rotate/crop operations work immediately
+                    self.cropper.file_path = str(Path(self.scandir) / image_path)
+                    # External url
                     url = f"/files/{image_path}"
                     self.cropper.set_source(url)
                     self.image_link.content = Link.create(url, image_path)

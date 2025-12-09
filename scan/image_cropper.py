@@ -64,6 +64,15 @@ class ImageCropper:
                 .tooltip("Apply Crop") \
                 .bind_visibility_from(self, "crop_width", backward=lambda w: w > 0)
 
+            # Rotation buttons
+            ui.button(icon="rotate_left", on_click=lambda: self.on_rotate_click(left=True)) \
+                .props("flat round color=primary") \
+                .tooltip("Rotate Left 90°")
+            ui.button(icon="rotate_right", on_click=lambda: self.on_rotate_click(left=False)) \
+                .props("flat round color=primary") \
+                .tooltip("Rotate Right 90°")
+
+
         # Interactive Image implementation
         self.interactive_view = ui.interactive_image(
             image_url,
@@ -127,6 +136,10 @@ class ImageCropper:
         if self.interactive_view:
             self.interactive_view.content = ""
 
+    def notify_problem(self,msg:str):
+        with self.container:
+            ui.notify(msg, type='warning')
+
     async def on_crop_click(self):
         """
         handle the click of the crop button
@@ -134,10 +147,16 @@ class ImageCropper:
         if self.file_path and os.path.isfile(self.file_path):
             background_tasks.create(self.apply_crop())
         else:
-            msg="No file path configured for cropping."
-            with self.container:
-                ui.notify(msg, type='warning')
-            return
+            self.notify_problem("No file path configured for cropping.")
+
+    async def on_rotate_click(self, left: bool = True):
+        """
+        Handle the click of the rotate buttons.
+        """
+        if self.file_path and os.path.isfile(self.file_path):
+            background_tasks.create(self.apply_rotation(left))
+        else:
+            self.notify_problem("No file path configured for rotation.")
 
 
     async def apply_crop(self):
@@ -149,9 +168,7 @@ class ImageCropper:
             h=self.crop_height
 
             if not os.path.exists(path):
-                msg=f"Image not found at {path}"
-                with self.container:
-                    ui.notify(msg)
+                self.notify_problem(f"Image not found at {path}")
                 return
 
             with Image.open(path) as img:
@@ -169,3 +186,40 @@ class ImageCropper:
                     self.interactive_view.force_reload()
         except Exception as ex:
             self.solution.handle_exception(ex)
+
+    async def apply_rotation(self, left: bool):
+        """
+        Rotates the image at self.file_path by 90 degrees and saves it.
+
+        Args:
+            left: If True, rotate 90 degrees Counter-Clockwise.
+                  If False, rotate 90 degrees Clockwise.
+        """
+        try:
+            path = self.file_path
+            if not os.path.exists(path):
+                self.notify_problem(f"Image not found at {path}")
+                return
+                        # Determine rotation angle constant
+            # ROTATE_90 is Counter-Clockwise (Left)
+            # ROTATE_270 is Counter-Clockwise 270 aka Clockwise 90 (Right)
+            method = Image.Transpose.ROTATE_90 if left else Image.Transpose.ROTATE_270
+
+            with Image.open(path) as img:
+                rotated_img = img.transpose(method)
+                rotated_img.save(path)
+
+            direction = "left" if left else "right"
+            msg = f"Rotated {direction} 90°"
+            with self.container:
+                ui.notify(msg)
+                        # Reset crop markup as dimensions/orientation have changed
+            self.reset_crop()
+
+            # Force browser to reload the image
+            with self.interactive_view:
+                self.interactive_view.force_reload()
+        except Exception as ex:
+            self.solution.handle_exception(ex)
+
+
