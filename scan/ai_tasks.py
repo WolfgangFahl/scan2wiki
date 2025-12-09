@@ -6,7 +6,7 @@ Created on 2025-12-08
 
 from dataclasses import field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from basemkit.yamlable import lod_storable
 from ngwidgets.llm import LLM, VisionLLM
@@ -16,37 +16,34 @@ from ngwidgets.llm import LLM, VisionLLM
 class APIConfig:
     """API configuration for LLM services"""
 
-    base_url: str = "https://openrouter.ai/api/v1"
+    base_url: str = "https://openrouter.ai/api/v1"  # The endpoint URL for the LLM API provider
 
 
 @lod_storable
 class ModelConfig:
     """Configuration for an LLM model"""
 
-    name: str  # ✓ Full OpenRouter model ID (e.g., google/gemini-2.0-flash-001)
-    provider: str  # provider e.g. google
-    description: Optional[str] = None
-    context_length: Optional[int] = None
-    price_per_mtoken: Optional[float] = None
+    name: str  # Full OpenRouter model ID (e.g., google/gemini-2.0-flash-001)
+    provider: str  # The model provider organization (e.g., google, openai, anthropic)
+    description: Optional[str] = None  # A human-readable summary of the model's capabilities
+    context_length: Optional[int] = None  # Maximum context window size in tokens
+    price_per_mtoken: Optional[float] = None  # cost per million tokens in USD
     input_types: List[str] = field(
         default_factory=lambda: ["text"]
-    )  # ✓ vision, text, etc.
+    )  # List of supported modalities (e.g., ["text", "vision"])
 
     @classmethod
-    def from_openai_model(cls, model) -> "ModelConfig":
+    def from_openai_model(cls, model: Any) -> "ModelConfig":
         """
-        Create ModelConfig from an OpenAI API model.
+        Create ModelConfig from an OpenAI API model object.
 
-        Args:
-            model: OpenAI model object from client.models.list()
-
-        Returns:
-            ModelConfig: Populated instance
+        The price per million tokens is calculated as the average of input and output costs:
+        $$ P_{avg} = \frac{P_{prompt} + P_{completion}}{2} \times 1,000,000 $$
         """
-        # Extract provider from model ID (e.g., "google" from "google/gemini-2.0-flash-001")
+        # Extract provider from model ID
         provider = model.id.split("/")[0] if "/" in model.id else "unknown"
 
-        # Price: average of prompt + completion, in $/million tokens
+        # Calculate price per million tokens (average of prompt + completion)
         price_per_mtoken = None
         pricing = getattr(model, "pricing", None)
         if pricing:
@@ -54,133 +51,144 @@ class ModelConfig:
             if avg_price > 0:
                 price_per_mtoken = avg_price * 1_000_000
 
-        # Input types from architecture modalities
-        input_types = ["text"]  # Text is always supported
+        # Determine input types from architecture modalities
+        input_types = ["text"]  # Text is universally supported
         arch = getattr(model, "architecture", {})
         modalities = arch.get("input_modalities", [])
 
-        # Map modalities to input types
         for modality in modalities:
             if modality in ["image", "audio", "video"] and modality not in input_types:
                 input_types.append(modality)
 
-        model_config = cls(
+        config_instance = cls(
             name=model.id,
             provider=provider,
-            context_length=getattr(model, "context_length", None),  # ✓ Fixed field name
+            context_length=getattr(model, "context_length", None),
             price_per_mtoken=price_per_mtoken,
-            input_types=input_types,  # ✓ Fixed field name
+            input_types=input_types,
         )
-        return model_config
+        return config_instance
 
 
 @lod_storable
 class TaskConfig:
     """Configuration for an AI task"""
 
-    prompt: str
-    model: Optional[str] = None  # ✓ Key from models dict (e.g., "gemini2")
-    description: Optional[str] = None
-    task_type: str = "text"
+    prompt: str  # The system or user prompt template to send to the model
+    model: Optional[str] = None  # Key reference to a specific entry in the models dictionary
+    description: Optional[str] = None  # Description of what this specific task achieves
+    input_type: str = "text"  # The required input modality (e.g., 'text', 'vision')
 
 
 @lod_storable
 class AITasks:
-    """Complete AI configuration"""
+    """Complete AI configuration managing APIs, Models, and Tasks"""
 
-    api: APIConfig = field(default_factory=APIConfig)
-    models: Dict[str, ModelConfig] = field(default_factory=dict)
-    tasks: Dict[str, TaskConfig] = field(default_factory=dict)
-    _instance: Optional["AITasks"] = None
-    _llms: Dict[str, LLM] = field(default_factory=dict)
+    api: APIConfig = field(default_factory=APIConfig)  # General API connection settings
+    models: Dict[str, ModelConfig] = field(
+        default_factory=dict
+    )  # Dictionary of available models, keyed by a short alias
+    tasks: Dict[str, TaskConfig] = field(
+        default_factory=dict
+    )  # Dictionary of defined tasks, keyed by task name
+    _instance: Optional["AITasks"] = None  # Singleton instance storage
+    _llms: Dict[str, LLM] = field(
+        default_factory=dict
+    )  # Runtime cache of instantiated LLM clients
 
     @classmethod
-    def get_instance(cls, yaml_file_path: str = None):
-        """Get singleton instance"""
+    def get_instance(cls, yaml_file_path: Optional[str] = None) -> "AITasks":
+        """Retrieve or create singleton instance"""
         if cls._instance is None:
             if yaml_file_path is None:
                 examples_path = Path(__file__).parent.parent / "scan2wiki_examples"
-                yaml_file_path = examples_path / "ai_tasks.yaml"
-            cls.yaml_file_path = yaml_file_path
+                yaml_file_path = str(examples_path / "ai_tasks.yaml")
+
+            # basemkit lod_storable load method
             cls._instance = cls.load_from_yaml_file(yaml_file_path)
+
         return cls._instance
 
     def perform_task(
         self,
         task_name: str,
-        model_name: Optional[str] = None,  # ✓ Now optional
+        model_name: Optional[str] = None,
         prompt_override: Optional[str] = None,
-        **params,
+        params:Dict[str,Any]=None,
     ) -> str:
         """
-        Perform AI task with configured or override settings.
+        Execute a configured AI task.
 
         Args:
-            task_name: Name of task from configuration
-            model_name: Optional model key override (e.g., "gemini2")
-            prompt_override: Optional custom prompt
-            **params: Task parameters (e.g., image_path)
+            task_name: Key of the task in configuration.
+            model_name: Optional override for the model key.
+            prompt_override: Optional override for the prompt text.
+            params: Additional parameters (e.g., image_path).
 
         Returns:
-            str: LLM response
+            str: The response text from the LLM.
         """
-        # ✓ Validate task
+        if params is None:
+            params = {}
+
+        response: str = ""
+
+        # 1. Validate task existence
         if task_name not in self.tasks:
             available = ", ".join(self.tasks.keys())
             raise ValueError(f"Unknown task '{task_name}'. Available: {available}")
 
         task = self.tasks[task_name]
 
-        # ✓ Determine model (task default or override)
-        if model_name is None:
-            model_name = task.model
-            if model_name is None:
-                raise ValueError(f"No model specified for task '{task_name}'")
+        # 2. Determine target model
+        target_model_name = model_name if model_name is not None else task.model
+        if target_model_name is None:
+            raise ValueError(f"No model specified for task '{task_name}'")
 
-        # ✓ Validate model
-        if model_name not in self.models:
+        # 3. Validate model existence
+        if target_model_name not in self.models:
             available = ", ".join(self.models.keys())
-            raise ValueError(f"Unknown model '{model_name}'. Available: {available}")
+            raise ValueError(f"Unknown model '{target_model_name}'. Available: {available}")
 
-        model = self.models[model_name]
+        model = self.models[target_model_name]
 
-        # ✓ Validate task type support
-        if task.task_type not in model.task_types:
+        # 4. Verify model supports the required input type
+        if task.input_type not in model.input_types:
+            supported = ", ".join(model.input_types)
             raise ValueError(
-                f"Model '{model_name}' does not support task type '{task.task_type}'. "
-                f"Supported: {', '.join(model.task_types)}"
+                f"Model '{target_model_name}' does not support input type '{task.input_type}'. "
+                f"Supported types: {supported}"
             )
 
-        # ✓ Get or create LLM instance
-        llm_cache_key = f"{model_name}-{task.task_type}"
+        # 5. Retrieve or Initialize LLM instance
+        llm_cache_key = f"{target_model_name}-{task.input_type}"
 
         if llm_cache_key not in self._llms:
-            # ✓ Use model.name (full OpenRouter ID), not model_name (config key)
-            if task.task_type == "vision":
+            if task.input_type == "vision":
                 self._llms[llm_cache_key] = VisionLLM(
-                    model=model.name,  # ✓ FIX: Use full model ID
+                    model=model.name,
                     base_url=self.api.base_url,
                 )
             else:
                 self._llms[llm_cache_key] = LLM(
-                    model=model.name,  # ✓ FIX: Use full model ID
+                    model=model.name,
                     base_url=self.api.base_url,
                 )
 
         llm = self._llms[llm_cache_key]
 
-        # ✓ Determine prompt
-        prompt = prompt_override if prompt_override else task.prompt
+        # 6. Execute request
+        prompt_text = prompt_override if prompt_override is not None else task.prompt
 
-        # ✓ Execute task
-        if task.task_type == "vision":
+        if task.input_type == "vision":
             if "image_path" not in params:
                 raise ValueError(
                     f"Vision task '{task_name}' requires 'image_path' parameter"
                 )
-
-            return llm.analyze_image(
-                image_path=params["image_path"], prompt_text=prompt
+            response = llm.analyze_image(
+                image_path=params["image_path"], prompt_text=prompt_text
             )
         else:
-            return llm.ask(prompt=prompt, model=model.name)  # ✓ Use full model ID
+            response = llm.ask(prompt=prompt_text, model=model.name)
+
+        return response

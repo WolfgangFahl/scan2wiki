@@ -88,10 +88,8 @@ class BaseWebcamForm:
                 )
                 self.cropper.setup_ui(
                     container=self.preview_row,
-                    image_url=self.shot_url)
+                    image_url="")
                 self.image_link = ui.html().style(Link.blue)
-                self.preview = ui.html()
-                self.cropper.preview=self.preview
         except Exception as ex:
             self.solution.handle_exception(ex)
 
@@ -153,13 +151,10 @@ class BaseWebcamForm:
             with self.preview_row:
                 if image_path:
                     url = f"/files/{image_path}"
-                    html_markup = (
-                        f"""<img src="{url}" style="width: 100%; height: auto;" />"""
-                    )
+                    self.cropper.set_source(url)
                     self.image_link.content = Link.create(url, image_path)
-                    self.preview.content = html_markup
                 else:
-                    self.preview.content = "Loading..."
+                    self.cropper.set_source("")
         except Exception as ex:
             self.solution.handle_exception(ex)
 

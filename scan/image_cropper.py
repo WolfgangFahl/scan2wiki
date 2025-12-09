@@ -33,7 +33,6 @@ class ImageCropper:
         self.container = None
         # Injections needed by caller
         self.file_path: str = None  # Store the physical path
-        self.preview = None
         # Debugging checkpoint
         pass
 
@@ -166,7 +165,6 @@ class ImageCropper:
                 msg=f"{path} cropped to {w}x{h}"
                 with self.container:
                     ui.notify(msg)
-                if self.preview:
-                    self.preview.update()
+                self.interactive_view.update()
         except Exception as ex:
             self.solution.handle_exception(ex)

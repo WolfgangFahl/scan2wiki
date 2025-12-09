@@ -8,7 +8,7 @@ models:
         provider: google
         context_length: 1048576
         price_per_mtoken: 0.25
-        task_types:
+        input_types:
             - vision
             - text
             - audio
@@ -19,7 +19,7 @@ models:
         provider: meta-llama
         context_length: 131072
         price_per_mtoken: 0.049
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -28,7 +28,7 @@ models:
         provider: openai
         context_length: 128000
         price_per_mtoken: 0.375
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -37,7 +37,7 @@ models:
         provider: mistralai
         context_length: 131072
         price_per_mtoken: 0.12
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -46,7 +46,7 @@ models:
         provider: anthropic
         context_length: 200000
         price_per_mtoken: 0.75
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -55,7 +55,7 @@ models:
         provider: x-ai
         context_length: 2000000
         price_per_mtoken: 0.35
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -64,7 +64,7 @@ models:
         provider: qwen
         context_length: 131072
         price_per_mtoken: 0.232
-        task_types:
+        input_types:
             - vision
             - text
 
@@ -77,4 +77,4 @@ tasks:
             markup.
             The result will be copied to a page directly so
             do not wrap or add comments.
-        task_type: vision
+        input_type: vision
