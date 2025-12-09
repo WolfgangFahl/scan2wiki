@@ -68,8 +68,9 @@ class ScanWebServer(InputWebserver):
             return await self.page(client, ScanSolution.upload, path)
 
         @ui.page("/ai-webcam")
-        async def aiwebcam(client: Client):
-            return await self.page(client, ScanSolution.aiwebcam)
+        @ui.page("/ai-webcam/{path:path}")
+        async def aiwebcam(client: Client, path: str = None):
+            return await self.page(client, ScanSolution.aiwebcam, path)
 
         @ui.page("/barcode-webcam")
         async def barcodewebcam(client: Client):
@@ -142,9 +143,9 @@ class ScanSolution(InputWebSolution):
             log_classes="w-full h-20",
         )
 
-    async def aiwebcam(self):
+    async def aiwebcam(self, path: str = None):
         def setup_webcam():
-            self.webcam_form = AIWebcamForm(self, self.args.webcams)
+            self.webcam_form = AIWebcamForm(self, self.args.webcams, path)
 
         await self.setup_content_div(setup_webcam)
 

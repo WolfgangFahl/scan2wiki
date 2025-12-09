@@ -27,13 +27,14 @@ class BaseWebcamForm:
     Base class for webcam functionality
     """
 
-    def __init__(self, solution, webcams: dict = None):
+    def __init__(self, solution, webcams: dict = None, path:str=None):
         """
         Initialize base webcam functionality
 
         Args:
             solution: The solution context
             webcams: Dictionary of webcam name-url pairs
+            path: Optional path to preload an existing image
         """
         self.solution = solution
         self.scandir = solution.webserver.scandir
@@ -42,9 +43,11 @@ class BaseWebcamForm:
         # Default to the first webcam if available, else empty string
         self.url = next(iter(self.webcams.values())) if self.webcams else ""
         self.shot_url = f"{self.url}"
-        self.image_path = None
+        self.image_path = path
         self.cropper=ImageCropper(solution=self.solution)
         self.setup_base_form()
+        if self.image_path:
+            background_tasks.create(self.update_image_preview())
 
     def notify(self, msg):
         """
@@ -101,6 +104,11 @@ class BaseWebcamForm:
         self.shot_url = self.url
         background_tasks.create(self.perform_webcam_shot())
 
+
+
+    async def update_image_preview(self):
+        self.update_preview(self.image_path)
+
     async def perform_webcam_shot(self):
         """
         Perform the webcam capture
@@ -108,7 +116,7 @@ class BaseWebcamForm:
         try:
             self.image_path, msg = self.save_webcam_shot()
             self.notify(msg)
-            self.update_preview(self.image_path)
+            await self.update_image_preview()
         except Exception as ex:
             self.solution.handle_exception(ex)
 
@@ -255,11 +263,16 @@ class AIWebcamForm(BaseWebcamForm):
     Extension of WebcamForm with AI capabilities via ngwidgets.VisionLLM
     """
 
-    def __init__(self, solution, webcams: dict):
+    def __init__(self, solution, webcams: dict, path: str = None):
         """
         Initialize AI functionality
+
+        Args:
+            solution: The solution context
+            webcams: Dictionary of webcam name-url pairs
+            path: Optional path to preload an existing image
         """
-        super().__init__(solution, webcams)
+        super().__init__(solution, webcams, path)
         self.args = solution.args
         self.ai_tasks = AITasks.get_instance()
         self.selected_task = (

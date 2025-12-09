@@ -137,6 +137,13 @@ class Scans:
             _text_url, text_link = self.get_file_link(text_filename)
             text_head = doc.get_text_head(3)
 
+        # Add AI link for image files
+        ai_link = ""
+        _, extension = os.path.splitext(path)
+        if extension.lower() in ['.jpg', '.jpeg', '.png']:
+            ai_link = Link.create(url=f"/ai-webcam/{path}", text="🤖")
+
+
         scan_file = {
             "#": index + 1,
             "name": file_link,
@@ -145,6 +152,7 @@ class Scans:
             "textSize": text_size,
             "textHead": text_head,
             "lastModified": doc.timestampStr,
+            "ai": ai_link,
             "delete": Link.create(url=f"/delete/{path}", text="❌"),
             "upload": Link.create(url=f"/upload/{path}", text="⇧"),
             "pagetitle": doc.pageTitle,
