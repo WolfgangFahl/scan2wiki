@@ -165,6 +165,7 @@ class ImageCropper:
                 msg=f"{path} cropped to {w}x{h}"
                 with self.container:
                     ui.notify(msg)
-                self.interactive_view.update()
+                with self.interactive_view:
+                    self.interactive_view.force_reload()
         except Exception as ex:
             self.solution.handle_exception(ex)
