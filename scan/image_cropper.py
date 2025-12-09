@@ -3,9 +3,11 @@ Created on 2025-12-08
 
 @author: wf
 """
+import os
 
-from nicegui import events, ui
 from PIL import Image
+from nicegui import events, ui, background_tasks
+
 
 class ImageCropper:
     """
@@ -13,7 +15,8 @@ class ImageCropper:
     Allows users to draw a box on an image to define crop coordinates.
     """
 
-    def __init__(self):
+    def __init__(self,solution):
+        self.solution=solution
         # Crop State
         self.crop_x: int = 0
         self.crop_y: int = 0
@@ -27,12 +30,23 @@ class ImageCropper:
 
         # References
         self.interactive_view: ui.interactive_image = None
+        self.container = None
+        # Injections needed by caller
+        self.file_path: str = None  # Store the physical path
+        self.preview = None
+        # Debugging checkpoint
         pass
 
-    def setup_ui(self, image_url: str):
+    def setup_ui(self, container, image_url: str):
         """
-        Sets up the UI elements: the coordinate inputs and the interactive image.
+        Sets up the UI elements.
+
+        Args:
+            container: The parent container
+            image_url: The URL for the browser to display
         """
+        self.container = container
+
         # Coordinate display
         with ui.row().classes("items-center"):
             ui.label("Crop Area:")
@@ -44,6 +58,12 @@ class ImageCropper:
 
             # Reset button convenient to have nearby
             ui.button(icon="crop_free", on_click=self.reset_crop).props("flat round color=warning").tooltip("Reset Crop")
+            # Crop button
+            # Visibility is bound to crop_width. It appears only when width > 0.
+            ui.button(icon="check", on_click=self.on_crop_click) \
+                .props("flat round color=positive") \
+                .tooltip("Apply Crop") \
+                .bind_visibility_from(self, "crop_width", backward=lambda w: w > 0)
 
         # Interactive Image implementation
         self.interactive_view = ui.interactive_image(
@@ -74,6 +94,7 @@ class ImageCropper:
         elif e.type == "mouseup":
             self.dragging = False
             self.update_crop_selection(e.image_x, e.image_y)
+
 
     def update_crop_selection(self, current_x: float, current_y: float):
         """
@@ -107,18 +128,45 @@ class ImageCropper:
         if self.interactive_view:
             self.interactive_view.content = ""
 
-    def apply_crop(self, image: Image.Image) -> Image.Image:
+    async def on_crop_click(self):
         """
-        Applies the current crop selection to a PIL Image object.
-        Returns the original image if no crop is selected.
+        handle the click of the crop button
         """
-        apply_image=image
-        if self.crop_width > 0 and self.crop_height > 0:
-            box = (
-                self.crop_x,
-                self.crop_y,
-                self.crop_x + self.crop_width,
-                self.crop_y + self.crop_height,
-            )
-            apply_image=image.crop(box)
-        return apply_image
+        if self.file_path and os.path.isfile(self.file_path):
+            background_tasks.create(self.apply_crop())
+        else:
+            msg="No file path configured for cropping."
+            with self.container:
+                ui.notify(msg, type='warning')
+            return
+
+
+    async def apply_crop(self):
+        try:
+            path=self.file_path
+            x=self.crop_x
+            y=self.crop_y
+            w=self.crop_width
+            h=self.crop_height
+
+            if not os.path.exists(path):
+                msg=f"Image not found at {path}"
+                with self.container:
+                    ui.notify(msg)
+                return
+
+            with Image.open(path) as img:
+                # Ensure we are working with correct coordinates
+                box = (x, y, x + w, y + h)
+                cropped_img = img.crop(box)
+
+                # Save back to specific path (overwrite)
+                # We save specifically to maintain format
+                cropped_img.save(path)
+                msg=f"{path} cropped to {w}x{h}"
+                with self.container:
+                    ui.notify(msg)
+                if self.preview:
+                    self.preview.update()
+        except Exception as ex:
+            self.solution.handle_exception(ex)

@@ -43,7 +43,7 @@ class BaseWebcamForm:
         self.url = next(iter(self.webcams.values())) if self.webcams else ""
         self.shot_url = f"{self.url}"
         self.image_path = None
-        self.cropper=ImageCropper()
+        self.cropper=ImageCropper(solution=self.solution)
         self.setup_base_form()
 
     def notify(self, msg):
@@ -59,36 +59,41 @@ class BaseWebcamForm:
         """
         Setup the base webcam form UI elements
         """
-        with ui.row() as self.button_row:
-            self.scan_button = ui.button("Scan", on_click=self.run_scan)
-            self.cropper.setup_ui(self.shot_url)
-        with ui.row() as self.markup_row:
-            pass
-        with ui.row() as self.preview_row:
-            # If predefined webcams exist, show a selector
-            if self.webcams:
-                # The select shows friendly names (keys) and stores the URL (values)
-                # Swap dict: {url: name} so select displays names but stores URLs
-                swapped = {url: name for name, url in self.webcams.items()}
+        try:
+            with ui.row() as self.button_row:
+                self.scan_button = ui.button("Scan", on_click=self.run_scan)
+            with ui.row() as self.markup_row:
+                pass
+            with ui.row() as self.preview_row:
+                # If predefined webcams exist, show a selector
+                if self.webcams:
+                    # The select shows friendly names (keys) and stores the URL (values)
+                    # Swap dict: {url: name} so select displays names but stores URLs
+                    swapped = {url: name for name, url in self.webcams.items()}
 
-                self.webcam_select = self.solution.add_select(
-                    title="Webcam",
-                    selection=swapped,
-                ).bind_value(
-                    self, "url"
-                )  # keep in sync with self.url
+                    self.webcam_select = self.solution.add_select(
+                        title="Webcam",
+                        selection=swapped,
+                    ).bind_value(
+                        self, "url"
+                    )  # keep in sync with self.url
 
-            # Always show manual input for custom URLs
-            self.webcam_input = (
-                ui.input(
-                    value=self.url, label="Webcam URL", placeholder="http(s)://..."
+                # Always show manual input for custom URLs
+                self.webcam_input = (
+                    ui.input(
+                        value=self.url, label="Webcam URL", placeholder="http(s)://..."
+                    )
+                    .bind_value(self, "url")  # bound to the same attribute as the select
+                    .props("size=60")
                 )
-                .bind_value(self, "url")  # bound to the same attribute as the select
-                .props("size=60")
-            )
-
-            self.image_link = ui.html().style(Link.blue)
-            self.preview = ui.html()
+                self.cropper.setup_ui(
+                    container=self.preview_row,
+                    image_url=self.shot_url)
+                self.image_link = ui.html().style(Link.blue)
+                self.preview = ui.html()
+                self.cropper.preview=self.preview
+        except Exception as ex:
+            self.solution.handle_exception(ex)
 
     async def run_scan(self):
         """
@@ -128,6 +133,7 @@ class BaseWebcamForm:
 
                 with open(image_file_path, "wb") as image_file:
                     image_file.write(response.content)
+                self.cropper.file_path=image_file_path
                 msg = f"Saved webcam image to {image_file_path}"
             else:
                 msg = f"Failed to fetch the webcam image. Status code: {response.status_code}"
