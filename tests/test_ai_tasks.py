@@ -158,7 +158,7 @@ class TestAITasks(Basetest):
         self.assertIn("ocr4wiki", ai_tasks.tasks, "ocr4wiki task not found")
         ocr_task = ai_tasks.tasks["ocr4wiki"]
         self.assertIsInstance(ocr_task, TaskConfig)
-        self.assertIsNotNote(ocr_task.prompt)
+        self.assertIsNotNone(ocr_task.prompt)
         self.assertIn("OCR", ocr_task.prompt, "OCR not in prompt")
         self.assertIn("OCR for MediaWiki", ocr_task.description)
 
@@ -167,6 +167,9 @@ class TestAITasks(Basetest):
         test different models
         """
         llm = LLM(base_url=self.ai_tasks.api.base_url)
+        # in public CI this might happen
+        if not llm.client:
+            return
         models = llm.client.models.list()
         configs = []
         for i, model in enumerate(models):
