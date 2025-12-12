@@ -78,3 +78,17 @@ tasks:
             The result will be copied to a page directly so
             do not wrap or add comments.
         input_type: vision
+
+    ocr4business:
+        description: |
+            OCR-Extractor with Summary for business
+        prompt: |
+            Please OCR the image and extract the relevant information. This should be for a business ledger.
+        input_type: vision
+
+    ocr4personal:
+        description: |
+            OCR-Extractor with Summary for personal use
+        prompt: |
+            Please OCR the image and extract the relevant information. This should be for a personal ledger.
+        input_type: vision
