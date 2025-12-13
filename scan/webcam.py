@@ -292,31 +292,35 @@ class AIWebcamForm(BaseWebcamForm):
         """
         Setup AI-specific UI elements
         """
-        with self.button_row:
-            self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
-            self.save_button = ui.button("Save", on_click=self.save_analysis)
-        with self.markup_row:
-            # Selector for AI tasks (prompts)
-            task_selection = {
-                task_name: task_config.description or task_name
-                for task_name, task_config in self.ai_tasks.tasks.items()
-            }
-            self.task_select = self.solution.add_select(
-                title="AI Task",
-                selection=task_selection,
-            ).bind_value(self, "selected_task")
+        try:
+            with self.button_row:
+                self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
+                self.save_button = ui.button("Save", on_click=self.save_analysis)
+            with self.markup_row:
+                # Selector for AI tasks (prompts)
+                task_selection = {
+                    task_name: task_config.description or task_name
+                    for task_name, task_config in self.ai_tasks.tasks.items()
+                }
+                self.task_select = self.solution.add_select(
+                    title="AI Task",
+                    selection=task_selection,
+                ).bind_value(self, "selected_task")
 
-            # Selector for models
-            model_selection = {
-                model_name: model_config.name
-                for model_name, model_config in self.ai_tasks.models.items()
-            }
-            self.model_select = self.solution.add_select(
-                title="Model",
-                selection=model_selection,
-            ).bind_value(self, "selected_model")
+                # Selector for models
+                model_selection = {
+                    model_name: model_config.name
+                    for model_name, model_config in self.ai_tasks.models.items()
+                }
+                self.model_select = self.solution.add_select(
+                    title="Model",
+                    selection=model_selection,
+                ).bind_value(self, "selected_model")
 
-            self.markup_result = ui.editor("Markup will show here")
+                self.markup_result = ui.editor(placeholder="Markup will show here")
+                pass
+        except Exception as ex:
+            self.solution.handle_exception(ex)
 
     async def analyze_image(self):
         """
@@ -327,7 +331,7 @@ class AIWebcamForm(BaseWebcamForm):
     def show_markup(self, msg: str, with_notify: bool = True):
         # display results
         with self.markup_row:
-            self.markup_result.content = f"<pre>{msg}</pre>"
+            self.markup_result.value = f"<pre>{msg}</pre>"
         if with_notify:
             self.notify(msg)
 
