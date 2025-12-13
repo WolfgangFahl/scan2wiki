@@ -277,7 +277,9 @@ class AIWebcamForm(BaseWebcamForm):
         """
         super().__init__(solution, webcams, path)
         self.args = solution.args
-        self.ai_tasks = AITasks.get_instance()
+        examples_path = Path(__file__).parent.parent / "scan2wiki_examples"
+        yaml_file_path = str(examples_path / "ai_tasks.yaml")
+        self.ai_tasks = AITasks.get_instance(yaml_file_path=yaml_file_path)
         self.selected_task = (
             next(iter(self.ai_tasks.tasks)) if self.ai_tasks.tasks else None
         )

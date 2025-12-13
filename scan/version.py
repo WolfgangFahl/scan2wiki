@@ -19,7 +19,7 @@ class Version(object):
     version = scan.__version__
     description = "Semantified Document Management System"
     date = "2021-12-20"
-    updated = "2025-11-09"
+    updated = "2025-12-13"
 
     authors = "Wolfgang Fahl"
 
