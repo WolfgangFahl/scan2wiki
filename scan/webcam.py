@@ -14,9 +14,9 @@ import requests
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
 from nicegui import background_tasks,ui
-from scan.image_cropper import ImageCropper
+from ngwidgets.image_cropper import ImageCropper
 
-from scan.ai_tasks import AITasks
+from ngwidgets.ai_tasks import AITasks
 from scan.amazon import Amazon
 from scan.barcode import Barcode
 from scan.product import Products
