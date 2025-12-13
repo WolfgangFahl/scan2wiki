@@ -294,6 +294,7 @@ class AIWebcamForm(BaseWebcamForm):
         """
         with self.button_row:
             self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
+            self.save_button = ui.button("Save", on_click=self.save_analysis)
         with self.markup_row:
             # Selector for AI tasks (prompts)
             task_selection = {
@@ -315,7 +316,7 @@ class AIWebcamForm(BaseWebcamForm):
                 selection=model_selection,
             ).bind_value(self, "selected_model")
 
-            self.markup_result = ui.html("Markup will show here")
+            self.markup_result = ui.editor("Markup will show here")
 
     async def analyze_image(self):
         """
@@ -329,6 +330,34 @@ class AIWebcamForm(BaseWebcamForm):
             self.markup_result.content = f"<pre>{msg}</pre>"
         if with_notify:
             self.notify(msg)
+
+    async def save_analysis(self):
+        """
+        Save the current editor content to a corresponding .txt file
+        """
+        try:
+            if not self.image_path:
+                self.notify("No image associated with current view.")
+                return
+
+            # Construct paths
+            image_file_path = Path(self.scandir) / self.image_path
+            # Change extension to .txt
+            txt_file_path = image_file_path.with_suffix(".txt")
+
+            # Get content from the editor
+            content = self.markup_result.value
+
+            if content:
+                with open(txt_file_path, "w", encoding="utf-8") as text_file:
+                    text_file.write(content)
+                self.notify(f"Saved analysis to {txt_file_path.name}")
+            else:
+                self.notify("No content to save.")
+
+        except Exception as ex:
+            self.solution.handle_exception(ex)
+
 
     async def perform_analysis(self):
         """
