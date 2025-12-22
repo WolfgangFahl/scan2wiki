@@ -114,8 +114,8 @@ class UploadForm:
                 self.progressbar = NiceguiProgressbar(100, "processing page", "steps")
                 with ui.card().tight():
                     with ui.card_section():
-                        self.submit = ui.button("upload", on_click=self.run_upload)
-                        self.ocr = ui.button("ocr", on_click=self.run_ocr)
+                        self.submit = ui.button("upload",icon="upload", on_click=self.run_upload)
+                        self.ocr = ui.button("ocr", icon="document_scanner", on_click=self.run_ocr)
                     with ui.card_section():
                         self.page_title = (
                             ui.input("pagetitle", on_change=self.update)

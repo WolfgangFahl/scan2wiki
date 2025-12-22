@@ -86,7 +86,7 @@ class ScanWebServer(InputWebserver):
 
         @app.get("/delete/{path:path}")
         def delete(path: str = None):
-            self.scans.delete(path)
+            self.scans.delete(path,with_txt=True)
             return RedirectResponse("/")
 
         @app.route("/files")
@@ -154,6 +154,25 @@ class ScanSolution(InputWebSolution):
             self.webcam_form = ProductWebcamForm(self, self.args.webcams)
 
         await self.setup_content_div(setup_webcam)
+
+    async def confirm(self, msg: str) -> bool:
+        """
+        Displays a generic confirmation dialog to the user.
+
+        Args:
+            msg (str): The message to display in the dialog.
+
+        Returns:
+            bool: True if the user clicked "Yes", False otherwise.
+        """
+        with ui.dialog() as dialog, ui.card():
+            ui.label(msg)
+            with ui.row():
+                ui.button("Yes", on_click=lambda: dialog.submit(True))
+                ui.button("No", on_click=lambda: dialog.submit(False))
+
+        result = await dialog
+        return result
 
     async def upload(self, path: str = None):
         """
@@ -275,7 +294,7 @@ class ScanSolution(InputWebSolution):
             )
             self.lod_grid = ListOfDictsGrid(config=grid_config)
             with self.lod_grid.button_row:
-                self.work_button = ui.button("work", on_click=self.on_work_click)
+                self.work_button = ui.button("work", icon="work", on_click=self.on_work_click)
                 self.workoptions = {
                     "ai": False,
                     "ocr": False,

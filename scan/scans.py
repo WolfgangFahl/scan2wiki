@@ -7,7 +7,7 @@ Created on 2023-11-14
 import os
 from datetime import datetime
 from typing import Any, Dict, List
-
+from pathlib import Path
 from ngwidgets.widgets import Link
 
 from scan.dms import Document
@@ -186,10 +186,26 @@ class Scans:
             "file_link": file_link,
         }
 
-    def delete(self, path: str):
+    def remove(self, path: str) -> None:
         """
+        Safely deletes a single file by relative path.
+        """
+        full_path = Path(self.get_full_path(path))
+        if full_path.exists():
+            full_path.unlink()
+
+    def delete(self, path: str, with_txt: bool = True) -> None:
+        """
+        Deletes a file from the scan directory.
+
         Args:
-            path (str): the file to delete
+            path (str): The relative path of the file to delete.
+            with_txt (bool): If True, also attempts to delete a corresponding .txt sidecar file.
         """
-        fullpath = self.get_full_path(path)
-        os.remove(fullpath)
+        # Delete the main file
+        self.remove(path)
+
+        # Delete the sidecar text file if requested
+        if with_txt:
+            txt_path = str(Path(path).with_suffix(".txt"))
+            self.remove(txt_path)

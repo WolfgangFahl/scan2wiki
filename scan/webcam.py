@@ -37,6 +37,7 @@ class BaseWebcamForm:
             path: Optional path to preload an existing image
         """
         self.solution = solution
+        self.scans=self.solution.webserver.scans
         self.scandir = solution.webserver.scandir
         self.webcams = webcams or {}
 
@@ -64,7 +65,8 @@ class BaseWebcamForm:
         """
         try:
             with ui.row() as self.button_row:
-                self.scan_button = ui.button("Scan", on_click=self.run_scan)
+                self.scan_button = ui.button("Scan", icon="camera",on_click=self.run_scan)
+                self.delete_button = ui.button("Delete", icon="delete", on_click=self.delete)
             with ui.row() as self.markup_row:
                 pass
             with ui.row() as self.preview_row:
@@ -103,6 +105,25 @@ class BaseWebcamForm:
         # Ensure shot_url updates if user changed the input
         self.shot_url = self.url
         background_tasks.create(self.perform_webcam_shot())
+
+    async def delete(self) -> None:
+        """
+        Deletes the currently selected image file after user confirmation.
+        """
+        try:
+            if not self.image_path:
+                return
+
+            if await self.solution.confirm(f"Delete {self.image_path}?"):
+                # Delegate deletion of image and potential sidecar txt to the Scans service
+                self.scans.delete(self.image_path, with_txt=True)
+
+                self.notify(f"Deleted {self.image_path}")
+                self.image_path = None
+                self.update_preview(None)
+
+        except Exception as ex:
+            self.solution.handle_exception(ex)
 
 
 
@@ -193,9 +214,9 @@ class ProductWebcamForm(BaseWebcamForm):
         Setup additional UI elements for product handling
         """
         with self.button_row:
-            self.barcode_button = ui.button("Barcode", on_click=self.scan_barcode)
-            self.lookup_button = ui.button("Lookup", on_click=self.lookup_gtin)
-            self.add_button = ui.button("add", on_click=self.add_product)
+            self.barcode_button = ui.button("Barcode",icon="qr_code_scanner", on_click=self.scan_barcode)
+            self.lookup_button = ui.button("Lookup", icon="search", on_click=self.lookup_gtin)
+            self.add_button = ui.button("add", icon="add", on_click=self.add_product)
 
         with self.preview_row:
             self.gtin_input = ui.input("gtin", value=self.gtin).bind_value(self, "gtin")
@@ -294,8 +315,8 @@ class AIWebcamForm(BaseWebcamForm):
         """
         try:
             with self.button_row:
-                self.analyze_button = ui.button("Analyze", on_click=self.analyze_image)
-                self.save_button = ui.button("Save", on_click=self.save_analysis)
+                self.analyze_button = ui.button("Analyze",icon="analytics", on_click=self.analyze_image)
+                self.save_button = ui.button("Save", icon="save", on_click=self.save_analysis)
             with self.markup_row:
                 # Selector for AI tasks (prompts)
                 task_selection = {
