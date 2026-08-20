@@ -16,7 +16,7 @@ from basemkit.shell import Shell
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.webserver import WebserverConfig
-from nicegui import Client, app, ui
+from nicegui import Client, app, run, ui
 
 from scan.version import Version
 
@@ -566,16 +566,24 @@ class Cam2WebSolution(InputWebSolution):
         control panel and LCD status strip
         """
         camera = self.webserver.camera
-        if not camera.claim(wait=5.0):
-            ui.notify("camera busy", type="warning")
-            return
+
+        def read() -> dict:
+            """
+            blocking camera read - runs off the event loop
+            """
+            if not camera.claim(wait=5.0):
+                raise RuntimeError("camera busy")
+            try:
+                settings = camera.read_settings()
+            finally:
+                camera.release()
+            return settings
+
         try:
-            self._settings = camera.read_settings()
+            self._settings = await run.io_bound(read)
         except Exception as ex:
             ui.notify(f"read settings failed: {ex}", type="negative")
             self._settings = {}
-        finally:
-            camera.release()
         for key, sel in self._controls.items():
             info = self._settings.get(key)
             if not info:
@@ -608,14 +616,21 @@ class Cam2WebSolution(InputWebSolution):
         if value in ("—", None):
             return
         camera = self.webserver.camera
-        if not camera.claim(wait=5.0):
-            ui.notify("camera busy", type="warning")
-            return
+
+        def write():
+            """
+            blocking camera write - runs off the event loop
+            """
+            if not camera.claim(wait=5.0):
+                raise RuntimeError("camera busy")
+            try:
+                camera.write_setting(key, value)
+            finally:
+                camera.release()
+
         try:
-            camera.write_setting(key, value)
+            await run.io_bound(write)
             ui.notify(f"{key} = {value}")
         except Exception as ex:
             ui.notify(f"{key} failed: {ex}", type="negative")
-        finally:
-            camera.release()
         self._update_lcd()
