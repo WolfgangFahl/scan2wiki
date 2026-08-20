@@ -270,6 +270,10 @@ class Cam2WebServer(InputWebserver):
         InputWebserver.__init__(self, config=Cam2WebServer.get_config())
         self.camera = None
 
+        @ui.page("/")
+        async def shooting_panel(client: Client):
+            return await self.page(client, Cam2WebSolution.home)
+
         @app.get("/still.jpg")
         def still():
             return self.still()
@@ -348,30 +352,47 @@ class Cam2WebSolution(InputWebSolution):
 
     async def home(self):
         """
-        remote shooting panel - live view, Shoot, Live view
+        remote shooting panel - Shoot, Live view, Stop
         see https://github.com/WolfgangFahl/scan2wiki/issues/34
         """
 
         def setup_home():
-            self.image = ui.image("/stream.mjpg").style("max-width:100%")
-            with ui.row():
+            with ui.row().classes("items-center gap-2"):
                 ui.button("Shoot", icon="camera", on_click=self.shoot)
                 ui.button("Live view", icon="videocam", on_click=self.live_view)
+                ui.button("Stop", icon="stop", on_click=self.stop_view)
+                self.status = ui.label("idle")
+            self.image = ui.image("").style(
+                "max-width:100%;min-height:512px;background:#222"
+            )
 
         await self.setup_content_div(setup_home)
 
-    async def shoot(self):
-        """
-        stop the live view, take a still and show it
-        """
-        import asyncio
+    def _bust(self, path: str) -> str:
+        return f"{path}?t={time.time()}"
 
+    def shoot(self):
+        """
+        stop the live view, then trigger a still capture
+        """
         self.image.set_source("")
-        await asyncio.sleep(3)
-        self.image.set_source(f"/still.jpg?t={time.time()}")
+        self.status.set_text("shooting ...")
+        ui.timer(3.0, lambda: self._show_still(), once=True)
+
+    def _show_still(self):
+        self.image.set_source(self._bust("/still.jpg"))
+        self.status.set_text("still")
 
     def live_view(self):
         """
-        resume the live view
+        start / resume the live view stream
         """
-        self.image.set_source(f"/stream.mjpg?t={time.time()}")
+        self.image.set_source(self._bust("/stream.mjpg"))
+        self.status.set_text("live view")
+
+    def stop_view(self):
+        """
+        stop whatever the panel currently shows
+        """
+        self.image.set_source("")
+        self.status.set_text("idle")
