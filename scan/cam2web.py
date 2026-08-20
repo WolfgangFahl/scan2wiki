@@ -28,15 +28,22 @@ class Camera:
 
     def __init__(self):
         self.lock = threading.Lock()
+        self.stop_stream = threading.Event()
 
-    def claim(self) -> bool:
+    def claim(self, wait: float = 0.0) -> bool:
         """
-        claim the camera for a single client
+        claim the camera for a single client - if a stream holds
+        the lock, signal it to stop and wait up to `wait` seconds
+
+        Args:
+            wait (float): seconds to wait for the current holder to release
 
         Returns:
             bool: True if the camera was claimed
         """
-        claimed = self.lock.acquire(blocking=False)
+        self.stop_stream.set()
+        claimed = self.lock.acquire(blocking=wait > 0, timeout=wait)
+        self.stop_stream.clear()
         return claimed
 
     def release(self):
@@ -44,7 +51,10 @@ class Camera:
         release the camera
         """
         if self.lock.locked():
-            self.lock.release()
+            try:
+                self.lock.release()
+            except RuntimeError:
+                pass
 
     def preview_frame(self) -> bytes:
         """
@@ -313,9 +323,10 @@ class Cam2WebServer(InputWebserver):
 
     def still(self) -> Response:
         """
-        take a picture and serve it as a JPEG
+        take a picture and serve it as a JPEG - stops any active
+        stream and waits up to 5 s for the lock to free up
         """
-        if not self.camera.claim():
+        if not self.camera.claim(wait=5.0):
             return HTMLResponse(content="camera busy", status_code=503)
         try:
             jpeg_bytes = self.camera.capture_still()
@@ -326,11 +337,12 @@ class Cam2WebServer(InputWebserver):
 
     def frames(self):
         """
-        generator yielding multipart MJPEG frames from the live view
+        generator yielding multipart MJPEG frames from the live view -
+        exits cleanly when Camera.stop_stream is signalled
         """
         try:
             delay = 1.0 / self.fps if self.fps > 0 else 0
-            while True:
+            while not self.camera.stop_stream.is_set():
                 frame = self.camera.preview_frame()
                 yield (
                     b"--frame\r\nContent-Type: image/jpeg\r\n"
@@ -390,13 +402,10 @@ class Cam2WebSolution(InputWebSolution):
 
     def shoot(self):
         """
-        stop the live view, then trigger a still capture
+        take a still - the server side stops any active stream and
+        serves the JPEG, the browser then shows it in place
         """
-        self.image.set_source("")
         self.status.set_text("shooting ...")
-        ui.timer(3.0, lambda: self._show_still(), once=True)
-
-    def _show_still(self):
         self.image.set_source(self._bust("/still.jpg"))
         self.status.set_text("still")
 
