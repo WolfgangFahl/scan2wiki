@@ -394,11 +394,15 @@ class Cam2WebSolution(InputWebSolution):
                 ui.button("Live view", icon="videocam", on_click=self.live_view)
                 ui.button("Stop", icon="stop", on_click=self.stop_view)
                 self.status = ui.label("idle")
-            self.image = ui.image("").style(
-                "max-width:100%;min-height:512px;background:#222"
-            )
+            self.image = ui.html(self._img(""))
 
         await self.setup_content_div(setup_home)
+
+    def _img(self, src: str) -> str:
+        style = "max-width:100%;min-height:512px;background:#222;display:block"
+        return f'<img src="{src}" style="{style}">' if src else (
+            f'<div style="{style}"></div>'
+        )
 
     def _bust(self, path: str) -> str:
         return f"{path}?t={time.time()}"
@@ -409,19 +413,19 @@ class Cam2WebSolution(InputWebSolution):
         serves the JPEG, the browser then shows it in place
         """
         self.status.set_text("shooting ...")
-        self.image.set_source(self._bust("/still.jpg"))
+        self.image.content = self._img(self._bust("/still.jpg"))
         self.status.set_text("still")
 
     def live_view(self):
         """
         start / resume the live view stream
         """
-        self.image.set_source(self._bust("/stream.mjpg"))
+        self.image.content = self._img(self._bust("/stream.mjpg"))
         self.status.set_text("live view")
 
     def stop_view(self):
         """
         stop whatever the panel currently shows
         """
-        self.image.set_source("")
+        self.image.content = self._img("")
         self.status.set_text("idle")
