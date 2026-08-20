@@ -35,11 +35,12 @@ class Camera:
 
     def __init__(self):
         self.lock = threading.Lock()
+        self.stop_stream = threading.Event()
 
     def claim(self, wait: float = 0.0) -> bool:
         """
-        claim the camera - the live view claims per frame so a
-        command acquired here interleaves with the stream
+        claim the camera for a single client - if a stream holds
+        the lock, signal it to stop and wait up to `wait` seconds
 
         Args:
             wait (float): seconds to wait for the current holder to release
@@ -47,10 +48,12 @@ class Camera:
         Returns:
             bool: True if the camera was claimed
         """
+        self.stop_stream.set()
         if wait > 0:
             claimed = self.lock.acquire(blocking=True, timeout=wait)
         else:
             claimed = self.lock.acquire(blocking=False)
+        self.stop_stream.clear()
         return claimed
 
     def release(self):
@@ -408,34 +411,29 @@ class Cam2WebServer(InputWebserver):
     def frames(self):
         """
         generator yielding multipart MJPEG frames from the live view -
-        the camera is claimed per frame so a still capture or a config
-        command can slip in between frames and the stream resumes on
-        its own afterwards
+        exits cleanly when Camera.stop_stream is signalled
         """
-        delay = 1.0 / self.fps if self.fps > 0 else 0
-        while True:
-            if not self.camera.claim(wait=2.0):
-                # a command is holding the camera - wait and retry
-                time.sleep(0.2)
-                continue
-            try:
+        try:
+            delay = 1.0 / self.fps if self.fps > 0 else 0
+            while not self.camera.stop_stream.is_set():
                 frame = self.camera.preview_frame()
-            finally:
-                self.camera.release()
-            yield (
-                b"--frame\r\nContent-Type: image/jpeg\r\n"
-                + f"Content-Length: {len(frame)}\r\n\r\n".encode()
-                + frame
-                + b"\r\n"
-            )
-            if delay:
-                time.sleep(delay)
+                yield (
+                    b"--frame\r\nContent-Type: image/jpeg\r\n"
+                    + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+                    + frame
+                    + b"\r\n"
+                )
+                if delay:
+                    time.sleep(delay)
+        finally:
+            self.camera.release()
 
     def stream(self) -> Response:
         """
-        serve the live view as an MJPEG stream - the stream claims the
-        camera per frame, it ends when the client disconnects
+        serve the live view as an MJPEG stream - one client at a time
         """
+        if not self.camera.claim():
+            return HTMLResponse(content="camera busy", status_code=503)
         response = StreamingResponse(
             self.frames(),
             media_type="multipart/x-mixed-replace; boundary=frame",
@@ -730,11 +728,10 @@ class Cam2WebSolution(InputWebSolution):
             return
         try:
             camera.write_setting(key, value)
-            # dependent values change with the write - re-read them
-            self._settings = camera.read_settings()
             self.notify(f"{key} = {value}")
         except Exception as ex:
             self.notify(f"{key} failed: {ex}", "negative")
         finally:
             camera.release()
-        self.show_settings()
+        with self.control_container:
+            self._update_lcd()
