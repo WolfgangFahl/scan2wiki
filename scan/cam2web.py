@@ -16,7 +16,8 @@ from basemkit.shell import Shell
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.webserver import WebserverConfig
-from nicegui import Client, app, run, ui
+from ngwidgets.task_runner import TaskRunner
+from nicegui import Client, app, ui
 
 from scan.version import Version
 
@@ -439,6 +440,7 @@ class Cam2WebSolution(InputWebSolution):
         Initialize the solution
         """
         super().__init__(webserver, client)
+        self.task_runner = TaskRunner(timeout=30.0)
 
     CONTROL_KEYS = [
         ("whitebalance", "WB"),
@@ -560,30 +562,34 @@ class Cam2WebSolution(InputWebSolution):
         self.image.content = self._img("")
         self.status.set_text("idle")
 
-    async def refresh_settings(self):
+    def refresh_settings(self):
         """
-        read the current settings from the camera and update the
-        control panel and LCD status strip
+        read the current settings from the camera via the house
+        TaskRunner so the event loop and the websocket stay alive
+        """
+        self.task_runner.run_blocking(self.read_settings)
+
+    def read_settings(self):
+        """
+        blocking camera read - runs in a TaskRunner thread
         """
         camera = self.webserver.camera
-
-        def read() -> dict:
-            """
-            blocking camera read - runs off the event loop
-            """
-            if not camera.claim(wait=5.0):
-                raise RuntimeError("camera busy")
-            try:
-                settings = camera.read_settings()
-            finally:
-                camera.release()
-            return settings
-
+        if not camera.claim(wait=5.0):
+            ui.notify("camera busy", type="warning")
+            return
         try:
-            self._settings = await run.io_bound(read)
+            self._settings = camera.read_settings()
         except Exception as ex:
             ui.notify(f"read settings failed: {ex}", type="negative")
             self._settings = {}
+        finally:
+            camera.release()
+        self.show_settings()
+
+    def show_settings(self):
+        """
+        update the control panel selects and the status strip
+        """
         for key, sel in self._controls.items():
             info = self._settings.get(key)
             if not info:
@@ -609,28 +615,27 @@ class Cam2WebSolution(InputWebSolution):
         self.lcd_model.set_text("Camera: Canon EOS 1000D")
         self.lcd_expo.set_text(f"{shutter} · f{aperture} · ISO{iso}")
 
-    async def apply_setting(self, key: str, value: str):
+    def apply_setting(self, key: str, value: str):
         """
-        write a single setting back to the camera
+        write a single setting back to the camera via the TaskRunner
         """
         if value in ("—", None):
             return
+        self.task_runner.run_blocking(self.write_setting, key, value)
+
+    def write_setting(self, key: str, value: str):
+        """
+        blocking camera write - runs in a TaskRunner thread
+        """
         camera = self.webserver.camera
-
-        def write():
-            """
-            blocking camera write - runs off the event loop
-            """
-            if not camera.claim(wait=5.0):
-                raise RuntimeError("camera busy")
-            try:
-                camera.write_setting(key, value)
-            finally:
-                camera.release()
-
+        if not camera.claim(wait=5.0):
+            ui.notify("camera busy", type="warning")
+            return
         try:
-            await run.io_bound(write)
+            camera.write_setting(key, value)
             ui.notify(f"{key} = {value}")
         except Exception as ex:
             ui.notify(f"{key} failed: {ex}", type="negative")
+        finally:
+            camera.release()
         self._update_lcd()
