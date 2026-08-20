@@ -111,28 +111,46 @@ class GPhoto2Camera(Camera):
         """
         OS daemons claim the USB device and block gphoto2 -
         ptpcamerad on macOS, gvfsd-gphoto2 on Linux - kill them
+        and wait until they are gone before returning
         """
         daemons = {
             "darwin": "ptpcamerad",
             "linux": "gvfsd-gphoto2",
         }
         daemon = daemons.get(sys.platform)
-        if daemon:
-            subprocess.run(
-                ["killall", "-9", daemon],
-                capture_output=True,
-                check=False,
+        if not daemon:
+            return
+        subprocess.run(
+            ["killall", "-9", daemon], capture_output=True, check=False
+        )
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            r = subprocess.run(
+                ["pgrep", "-x", daemon], capture_output=True, check=False
             )
+            if r.returncode != 0:
+                return
+            time.sleep(0.05)
 
     def open(self):
         """
-        initialize the gphoto2 camera connection
+        initialize the gphoto2 camera connection - retry on
+        transient USB claim races
         """
         import gphoto2 as gp
 
-        self.os_workaround()
-        self.camera = gp.Camera()
-        self.camera.init()
+        last_err = None
+        for _ in range(3):
+            self.os_workaround()
+            try:
+                self.camera = gp.Camera()
+                self.camera.init()
+                return
+            except gp.GPhoto2Error as ex:
+                last_err = ex
+                self.camera = None
+                time.sleep(0.3)
+        raise last_err
 
     def close(self):
         """
@@ -154,7 +172,6 @@ class GPhoto2Camera(Camera):
         if self.mode != mode:
             if self.mode is not None:
                 self.close()
-                self.os_workaround()
             if self.camera is None:
                 self.open()
             self.mode = mode
