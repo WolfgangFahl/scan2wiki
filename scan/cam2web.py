@@ -466,37 +466,41 @@ class Cam2WebSolution(InputWebSolution):
 
     def _setup_lcd_strip(self):
         """
-        LCD-styled status strip - camera model, battery, drive mode,
-        shots left, current exposure line
+        LCD-styled status strip with the shutter and view controls -
+        always visible at the top of the panel
         """
         with ui.row().classes(
-            "w-full items-center justify-between gap-4 rounded"
+            "w-full items-center gap-4 rounded"
         ).style(
             "background:#111;color:#ffd700;"
             "font-family:monospace;padding:8px 12px"
         ):
+            ui.button(icon="camera", on_click=self.shoot).props(
+                "round color=red size=lg"
+            ).tooltip("Shoot")
+            ui.button(icon="videocam", on_click=self.live_view).props(
+                "flat color=yellow"
+            ).tooltip("Live view")
+            ui.button(icon="stop", on_click=self.stop_view).props(
+                "flat color=yellow"
+            ).tooltip("Stop")
+            ui.separator().props("vertical")
             self.lcd_model = ui.label("Camera: —")
             self.lcd_battery = ui.label("Battery: —")
             self.lcd_drive = ui.label("Drive: —")
             self.lcd_shots = ui.label("Shots: —")
             self.lcd_expo = ui.label("— · f— · ISO—")
+            self.status = ui.label("idle").style("margin-left:auto")
             ui.button(icon="refresh", on_click=self.refresh_settings).props(
                 "flat color=yellow"
-            )
+            ).tooltip("Refresh from camera")
 
     def _setup_live_view(self):
         """
-        live view window with round shutter button and mode buttons
+        live view / still window
         """
         with ui.column().classes("gap-2").style("min-width:520px"):
             self.image = ui.html(self._img(""))
-            with ui.row().classes("items-center gap-3 justify-center"):
-                ui.button(icon="camera", on_click=self.shoot).props(
-                    "round color=red size=xl"
-                ).tooltip("Shoot")
-                ui.button("Live view", icon="videocam", on_click=self.live_view)
-                ui.button("Stop", icon="stop", on_click=self.stop_view)
-                self.status = ui.label("idle")
 
     def _setup_control_panel(self):
         """
