@@ -8,6 +8,7 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 """
 
 import os
+import queue
 import sys
 import threading
 import time
@@ -30,52 +31,94 @@ from scan.version import Version
 
 class Camera:
     """
-    camera backend serving JPEG frames and stills
+    camera backend serving JPEG frames and stills - a single owner
+    thread executes all camera commands one after the other so that
+    preview, capture and configuration never race each other
+    see https://github.com/WolfgangFahl/scan2wiki/issues/35
     """
 
     def __init__(self):
-        self.lock = threading.Lock()
-        self.stop_stream = threading.Event()
+        self.commands = queue.Queue()
+        self.worker = threading.Thread(target=self._work, daemon=True)
+        self.worker.start()
 
-    def claim(self, wait: float = 0.0) -> bool:
+    def _work(self):
         """
-        claim the camera for a single client - if a stream holds
-        the lock, signal it to stop and wait up to `wait` seconds
+        the camera owner loop - executes queued commands in order
+        """
+        while True:
+            command = self.commands.get()
+            if command is None:
+                break
+            func, args, result, done = command
+            try:
+                result["value"] = func(*args)
+            except Exception as ex:
+                result["error"] = ex
+            finally:
+                done.set()
+
+    def submit(self, func, *args, timeout: float = 60.0):
+        """
+        run the given camera operation on the owner thread
 
         Args:
-            wait (float): seconds to wait for the current holder to release
+            func: the operation to run
+            args: arguments for the operation
+            timeout (float): seconds to wait for the result
 
         Returns:
-            bool: True if the camera was claimed
+            the operation result
         """
-        self.stop_stream.set()
-        if wait > 0:
-            claimed = self.lock.acquire(blocking=True, timeout=wait)
-        else:
-            claimed = self.lock.acquire(blocking=False)
-        self.stop_stream.clear()
-        return claimed
+        result = {}
+        done = threading.Event()
+        self.commands.put((func, args, result, done))
+        if not done.wait(timeout):
+            raise TimeoutError(f"camera command {func.__name__} timed out")
+        if "error" in result:
+            raise result["error"]
+        return result["value"]
 
-    def release(self):
+    def shutdown(self):
         """
-        release the camera
+        stop the owner thread
         """
-        if self.lock.locked():
-            try:
-                self.lock.release()
-            except RuntimeError:
-                pass
+        self.commands.put(None)
 
     def preview_frame(self) -> bytes:
         """
         get a single live view JPEG frame
         """
-        raise NotImplementedError
+        return self.submit(self.do_preview_frame)
 
     def capture_still(self) -> bytes:
         """
         take a picture and return it as JPEG bytes
         """
+        return self.submit(self.do_capture_still, timeout=90.0)
+
+    def read_settings(self) -> dict:
+        """
+        read the camera settings
+        """
+        return self.submit(self.do_read_settings)
+
+    def write_setting(self, key: str, value: str):
+        """
+        write a single camera setting
+        """
+        return self.submit(self.do_write_setting, key, value)
+
+    def do_preview_frame(self) -> bytes:
+        raise NotImplementedError
+
+    def do_capture_still(self) -> bytes:
+        raise NotImplementedError
+
+    def do_read_settings(self) -> dict:
+        return {}
+
+    def do_write_setting(self, key: str, value: str):
         raise NotImplementedError
 
 
@@ -108,11 +151,11 @@ class MockCamera(Camera):
         doc.close()
         return jpeg_bytes
 
-    def preview_frame(self) -> bytes:
+    def do_preview_frame(self) -> bytes:
         self.frame_no += 1
         return self.render(f"mock preview {self.frame_no}")
 
-    def capture_still(self) -> bytes:
+    def do_capture_still(self) -> bytes:
         return self.render("mock still")
 
 
@@ -121,10 +164,15 @@ class GPhoto2Camera(Camera):
     gphoto2 camera backend using the python-gphoto2 library
     """
 
+    # the camera is a mechanical device - guard against churning it
+    MIN_TRANSITION_INTERVAL = 1.0  # seconds between viewfinder switches
+    MAX_TRANSITIONS_PER_MINUTE = 20
+
     def __init__(self):
         super().__init__()
         self.camera = None
-        self.mode = None  # "preview" or "still"
+        self.viewfinder_on = False
+        self.transitions = []  # timestamps of viewfinder transitions
 
     shell = Shell()
     daemons = {
@@ -179,35 +227,63 @@ class GPhoto2Camera(Camera):
             self.camera = None
         self.mode = None
 
-    def switch_mode(self, mode: str):
+    def ensure_open(self):
         """
-        switch between live view and picture taking - on macOS
-        the camera must be reclaimed on each switch
+        make sure the single camera session is open
+        """
+        if self.camera is None:
+            self.open()
+
+    def check_transition_rate(self):
+        """
+        refuse to churn the camera - a viewfinder transition is a
+        mechanical operation, so it is rate limited
+        """
+        now = time.monotonic()
+        self.transitions = [t for t in self.transitions if now - t < 60]
+        if len(self.transitions) >= self.MAX_TRANSITIONS_PER_MINUTE:
+            raise RuntimeError(
+                f"viewfinder transition rate limit of "
+                f"{self.MAX_TRANSITIONS_PER_MINUTE} per minute reached"
+            )
+        if self.transitions:
+            wait = self.MIN_TRANSITION_INTERVAL - (now - self.transitions[-1])
+            if wait > 0:
+                time.sleep(wait)
+        self.transitions.append(time.monotonic())
+
+    def set_viewfinder(self, on: bool):
+        """
+        switch the live view on or off via the camera's viewfinder
+        action - this replaces closing and reopening the session
 
         Args:
-            mode (str): "preview" or "still"
+            on (bool): True to start the live view
         """
-        if self.mode != mode:
-            if self.mode is not None:
-                self.close()
-            if self.camera is None:
-                self.open()
-            self.mode = mode
+        if self.viewfinder_on == on:
+            return
+        self.ensure_open()
+        self.check_transition_rate()
+        root = self.camera.get_config()
+        node = self._cfg_node(root, "viewfinder")
+        if node is not None:
+            node.set_value(1 if on else 0)
+            self.camera.set_config(root)
+        self.viewfinder_on = on
 
     def recover(self):
         """
-        recover from a dead camera connection - close, rerun
-        the OS workaround and reopen
+        recover from a dead camera session - close, rerun the OS
+        workaround and reopen; this is the exception, not the
+        normal path
         """
-        mode = self.mode
         try:
             self.close()
         except Exception:
             self.camera = None
-            self.mode = None
+        self.viewfinder_on = False
         self.os_workaround()
         self.open()
-        self.mode = mode
 
     def with_retry(self, operation):
         """
@@ -233,26 +309,31 @@ class GPhoto2Camera(Camera):
                 raise
         return result
 
-    def preview_frame(self) -> bytes:
+    def do_preview_frame(self) -> bytes:
         def op() -> bytes:
-            self.switch_mode("preview")
+            self.set_viewfinder(True)
             camera_file = self.camera.capture_preview()
             file_data = camera_file.get_data_and_size()
             return bytes(file_data)
 
         return self.with_retry(op)
 
-    def capture_still(self) -> bytes:
+    def do_capture_still(self) -> bytes:
         import gphoto2 as gp
 
         def op() -> bytes:
-            self.switch_mode("still")
-            file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE)
-            camera_file = self.camera.file_get(
-                file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL
-            )
-            file_data = camera_file.get_data_and_size()
-            return bytes(file_data)
+            was_on = self.viewfinder_on
+            self.set_viewfinder(False)
+            try:
+                file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE)
+                camera_file = self.camera.file_get(
+                    file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL
+                )
+                jpeg_bytes = bytes(camera_file.get_data_and_size())
+            finally:
+                if was_on:
+                    self.set_viewfinder(True)
+            return jpeg_bytes
 
         return self.with_retry(op)
 
@@ -273,15 +354,14 @@ class GPhoto2Camera(Camera):
         except Exception:
             return None
 
-    def read_settings(self) -> dict:
+    def do_read_settings(self) -> dict:
         """
         read camera settings as {key: {"value": str, "choices": [str]}}
-        - runs under the shared lock, must be called after claim
+        - the live view keeps running, no session teardown
         """
-        import gphoto2 as gp
 
         def op() -> dict:
-            self.switch_mode("still")
+            self.ensure_open()
             root = self.camera.get_config()
             out = {}
             for key in self.CONFIG_KEYS:
@@ -302,12 +382,13 @@ class GPhoto2Camera(Camera):
 
         return self.with_retry(op)
 
-    def write_setting(self, key: str, value: str):
+    def do_write_setting(self, key: str, value: str):
         """
-        set a single camera config value
+        set a single camera config value - the live view keeps
+        running, no session teardown
         """
         def op():
-            self.switch_mode("still")
+            self.ensure_open()
             root = self.camera.get_config()
             node = self._cfg_node(root, key)
             if node is None:
@@ -317,9 +398,16 @@ class GPhoto2Camera(Camera):
 
         self.with_retry(op)
 
-    def release(self):
-        self.close()
-        super().release()
+    def shutdown(self):
+        """
+        stop the live view and close the single session
+        """
+        try:
+            self.set_viewfinder(False)
+            self.close()
+        except Exception:
+            self.camera = None
+        super().shutdown()
 
 
 @dataclass
@@ -396,44 +484,38 @@ class Cam2WebServer(InputWebserver):
 
     def still(self) -> Response:
         """
-        take a picture and serve it as a JPEG - stops any active
-        stream and waits up to 5 s for the lock to free up
+        take a picture and serve it as a JPEG - the camera owner
+        thread runs the capture between two preview frames
         """
-        if not self.camera.claim(wait=5.0):
-            return HTMLResponse(content="camera busy", status_code=503)
         try:
             jpeg_bytes = self.camera.capture_still()
             response = Response(content=jpeg_bytes, media_type="image/jpeg")
-        finally:
-            self.camera.release()
+        except Exception as ex:
+            response = HTMLResponse(content=str(ex), status_code=503)
         return response
 
     def frames(self):
         """
         generator yielding multipart MJPEG frames from the live view -
-        exits cleanly when Camera.stop_stream is signalled
+        each frame is a command on the camera owner thread, so stills
+        and configuration commands interleave between frames
         """
-        try:
-            delay = 1.0 / self.fps if self.fps > 0 else 0
-            while not self.camera.stop_stream.is_set():
-                frame = self.camera.preview_frame()
-                yield (
-                    b"--frame\r\nContent-Type: image/jpeg\r\n"
-                    + f"Content-Length: {len(frame)}\r\n\r\n".encode()
-                    + frame
-                    + b"\r\n"
-                )
-                if delay:
-                    time.sleep(delay)
-        finally:
-            self.camera.release()
+        delay = 1.0 / self.fps if self.fps > 0 else 0
+        while True:
+            frame = self.camera.preview_frame()
+            yield (
+                b"--frame\r\nContent-Type: image/jpeg\r\n"
+                + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+                + frame
+                + b"\r\n"
+            )
+            if delay:
+                time.sleep(delay)
 
     def stream(self) -> Response:
         """
-        serve the live view as an MJPEG stream - one client at a time
+        serve the live view as an MJPEG stream
         """
-        if not self.camera.claim():
-            return HTMLResponse(content="camera busy", status_code=503)
         response = StreamingResponse(
             self.frames(),
             media_type="multipart/x-mixed-replace; boundary=frame",
@@ -632,16 +714,11 @@ class Cam2WebSolution(InputWebSolution):
         blocking camera read - runs in a TaskRunner thread
         """
         camera = self.webserver.camera
-        if not camera.claim(wait=5.0):
-            self.notify("camera busy", "warning")
-            return
         try:
             self._settings = camera.read_settings()
         except Exception as ex:
             self.notify(f"read settings failed: {ex}", "negative")
             self._settings = {}
-        finally:
-            camera.release()
         self.show_settings()
 
     def show_settings(self):
@@ -723,15 +800,11 @@ class Cam2WebSolution(InputWebSolution):
         blocking camera write - runs in a TaskRunner thread
         """
         camera = self.webserver.camera
-        if not camera.claim(wait=5.0):
-            self.notify("camera busy", "warning")
-            return
         try:
             camera.write_setting(key, value)
+            # dependent values change with the write - re-read them
+            self._settings = camera.read_settings()
             self.notify(f"{key} = {value}")
         except Exception as ex:
             self.notify(f"{key} failed: {ex}", "negative")
-        finally:
-            camera.release()
-        with self.control_container:
-            self._update_lcd()
+        self.show_settings()

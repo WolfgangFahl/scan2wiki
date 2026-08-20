@@ -3,18 +3,72 @@ Created on 2026-08-20
 
 hardware-free tests for the cam2web module
 see https://github.com/WolfgangFahl/scan2wiki/issues/33
+and https://github.com/WolfgangFahl/scan2wiki/issues/35
 
 @author: wf
 """
 
+import threading
+
 from ngwidgets.basetest import Basetest
 
-from scan.cam2web import Cam2WebServer, MockCamera
+from scan.cam2web import Cam2WebServer, GPhoto2Camera, MockCamera
+
+
+class CountingCamera(GPhoto2Camera):
+    """
+    gphoto2 camera with the libgphoto2 calls replaced by counters -
+    proves the session handling without touching hardware
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.counts = {"init": 0, "exit": 0, "viewfinder": 0}
+        self.settings = {"iso": {"value": "Auto", "choices": ["Auto", "100"]}}
+
+    def open(self):
+        self.counts["init"] += 1
+        self.camera = object()
+
+    def close(self):
+        if self.camera:
+            self.counts["exit"] += 1
+            self.camera = None
+
+    def set_viewfinder(self, on: bool):
+        if self.viewfinder_on == on:
+            return
+        self.ensure_open()
+        self.check_transition_rate()
+        self.counts["viewfinder"] += 1
+        self.viewfinder_on = on
+
+    def do_preview_frame(self) -> bytes:
+        self.set_viewfinder(True)
+        return b"\xff\xd8preview\xff\xd9"
+
+    def do_capture_still(self) -> bytes:
+        was_on = self.viewfinder_on
+        self.set_viewfinder(False)
+        try:
+            jpeg_bytes = b"\xff\xd8still\xff\xd9"
+        finally:
+            if was_on:
+                self.set_viewfinder(True)
+        return jpeg_bytes
+
+    def do_read_settings(self) -> dict:
+        self.ensure_open()
+        return self.settings
+
+    def do_write_setting(self, key: str, value: str):
+        self.ensure_open()
+        self.settings[key]["value"] = value
 
 
 class TestCam2Web(Basetest):
     """
-    test the cam2web module with the mock camera backend
+    test the cam2web module without camera hardware
     """
 
     def test_mock_camera(self):
@@ -25,17 +79,64 @@ class TestCam2Web(Basetest):
         for jpeg_bytes in (camera.preview_frame(), camera.capture_still()):
             self.assertTrue(jpeg_bytes.startswith(b"\xff\xd8"))
             self.assertTrue(jpeg_bytes.endswith(b"\xff\xd9"))
+        camera.shutdown()
 
-    def test_single_client(self):
+    def test_commands_are_serialized(self):
         """
-        test that the camera is claimed per client
+        test that concurrent commands run one after the other on the
+        camera owner thread
         """
         camera = MockCamera()
-        self.assertTrue(camera.claim())
-        self.assertFalse(camera.claim())
-        camera.release()
-        self.assertTrue(camera.claim())
-        camera.release()
+        results = []
+
+        def shoot():
+            results.append(camera.capture_still())
+
+        threads = [threading.Thread(target=shoot) for _ in range(5)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(5, len(results))
+        camera.shutdown()
+
+    def test_no_session_teardown(self):
+        """
+        test the issue 35 acceptance criterion: one init, no exit and
+        no needless viewfinder churn while stills and config commands
+        interleave with a running live view
+        """
+        camera = CountingCamera()
+        camera.MIN_TRANSITION_INTERVAL = 0.0
+        # live view running
+        for _ in range(3):
+            camera.preview_frame()
+        # a still and config commands in between
+        camera.capture_still()
+        camera.read_settings()
+        camera.write_setting("iso", "100")
+        # live view continues
+        for _ in range(3):
+            camera.preview_frame()
+        self.assertEqual(1, camera.counts["init"])
+        self.assertEqual(0, camera.counts["exit"])
+        # viewfinder: on for preview, off for the still, on again
+        self.assertEqual(3, camera.counts["viewfinder"])
+        self.assertEqual("100", camera.settings["iso"]["value"])
+        camera.shutdown()
+
+    def test_transition_rate_limit(self):
+        """
+        test that the camera is protected against viewfinder churn
+        """
+        camera = CountingCamera()
+        camera.MIN_TRANSITION_INTERVAL = 0.0
+        camera.MAX_TRANSITIONS_PER_MINUTE = 4
+        with self.assertRaises(RuntimeError) as context:
+            for _ in range(10):
+                camera.set_viewfinder(not camera.viewfinder_on)
+        self.assertIn("rate limit", str(context.exception))
+        camera.shutdown()
 
     def test_config(self):
         """
