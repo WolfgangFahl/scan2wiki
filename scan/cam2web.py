@@ -7,12 +7,12 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 @author: wf
 """
 
-import subprocess
 import sys
 import threading
 import time
 from dataclasses import dataclass
 
+from basemkit.shell import Shell
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.webserver import WebserverConfig
@@ -119,28 +119,26 @@ class GPhoto2Camera(Camera):
         self.camera = None
         self.mode = None  # "preview" or "still"
 
-    @staticmethod
-    def os_workaround():
+    shell = Shell()
+    daemons = {
+        "darwin": "ptpcamerad",
+        "linux": "gvfsd-gphoto2",
+    }
+
+    @classmethod
+    def os_workaround(cls):
         """
         OS daemons claim the USB device and block gphoto2 -
         ptpcamerad on macOS, gvfsd-gphoto2 on Linux - kill them
         and wait until they are gone before returning
         """
-        daemons = {
-            "darwin": "ptpcamerad",
-            "linux": "gvfsd-gphoto2",
-        }
-        daemon = daemons.get(sys.platform)
+        daemon = cls.daemons.get(sys.platform)
         if not daemon:
             return
-        subprocess.run(
-            ["killall", "-9", daemon], capture_output=True, check=False
-        )
+        cls.shell.run(f"killall -9 {daemon}", debug=False)
         deadline = time.monotonic() + 1.0
         while time.monotonic() < deadline:
-            r = subprocess.run(
-                ["pgrep", "-x", daemon], capture_output=True, check=False
-            )
+            r = cls.shell.run(f"pgrep -x {daemon}", debug=False)
             if r.returncode != 0:
                 return
             time.sleep(0.05)
