@@ -107,14 +107,19 @@ class GPhoto2Camera(Camera):
         self.mode = None  # "preview" or "still"
 
     @staticmethod
-    def macos_workaround():
+    def os_workaround():
         """
-        on macOS the ptpcamerad daemon claims the USB device -
-        kill it so gphoto2 can access the camera
+        OS daemons claim the USB device and block gphoto2 -
+        ptpcamerad on macOS, gvfsd-gphoto2 on Linux - kill them
         """
-        if sys.platform == "darwin":
+        daemons = {
+            "darwin": "ptpcamerad",
+            "linux": "gvfsd-gphoto2",
+        }
+        daemon = daemons.get(sys.platform)
+        if daemon:
             subprocess.run(
-                ["killall", "-9", "ptpcamerad"],
+                ["killall", "-9", daemon],
                 capture_output=True,
                 check=False,
             )
@@ -125,7 +130,7 @@ class GPhoto2Camera(Camera):
         """
         import gphoto2 as gp
 
-        self.macos_workaround()
+        self.os_workaround()
         self.camera = gp.Camera()
         self.camera.init()
 
@@ -149,29 +154,72 @@ class GPhoto2Camera(Camera):
         if self.mode != mode:
             if self.mode is not None:
                 self.close()
-                self.macos_workaround()
+                self.os_workaround()
             if self.camera is None:
                 self.open()
             self.mode = mode
 
-    def preview_frame(self) -> bytes:
+    def recover(self):
+        """
+        recover from a dead camera connection - close, rerun
+        the OS workaround and reopen
+        """
+        mode = self.mode
+        try:
+            self.close()
+        except Exception:
+            self.camera = None
+            self.mode = None
+        self.os_workaround()
+        self.open()
+        self.mode = mode
+
+    def with_retry(self, operation):
+        """
+        run the given camera operation, recovering once on GPhoto2Error;
+        on second failure release the claim and propagate the error
+
+        Args:
+            operation: callable performing the camera operation
+
+        Returns:
+            bytes: JPEG image data
+        """
         import gphoto2 as gp
 
-        self.switch_mode("preview")
-        camera_file = self.camera.capture_preview()
-        file_data = camera_file.get_data_and_size()
-        return bytes(file_data)
+        try:
+            result = operation()
+        except gp.GPhoto2Error:
+            try:
+                self.recover()
+                result = operation()
+            except Exception:
+                self.release()
+                raise
+        return result
+
+    def preview_frame(self) -> bytes:
+        def op() -> bytes:
+            self.switch_mode("preview")
+            camera_file = self.camera.capture_preview()
+            file_data = camera_file.get_data_and_size()
+            return bytes(file_data)
+
+        return self.with_retry(op)
 
     def capture_still(self) -> bytes:
         import gphoto2 as gp
 
-        self.switch_mode("still")
-        file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE)
-        camera_file = self.camera.file_get(
-            file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL
-        )
-        file_data = camera_file.get_data_and_size()
-        return bytes(file_data)
+        def op() -> bytes:
+            self.switch_mode("still")
+            file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE)
+            camera_file = self.camera.file_get(
+                file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL
+            )
+            file_data = camera_file.get_data_and_size()
+            return bytes(file_data)
+
+        return self.with_retry(op)
 
     def release(self):
         self.close()
