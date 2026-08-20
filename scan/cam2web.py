@@ -358,6 +358,10 @@ class Cam2WebServer(InputWebserver):
         async def shooting_panel(client: Client):
             return await self.page(client, Cam2WebSolution.home)
 
+        @ui.page("/control")
+        async def control_panel(client: Client):
+            return await self.page(client, Cam2WebSolution.control)
+
         @app.get("/still.jpg")
         def still():
             return self.still()
@@ -446,50 +450,55 @@ class Cam2WebSolution(InputWebSolution):
         ("aperture", "Aperture"),
     ]
 
+    def configure_menu(self):
+        """
+        add the cam control entry to the menu
+        """
+        self.link_button("cam control", "/control", "tune", new_tab=False)
+
     async def home(self):
         """
-        remote shooting panel - LCD status strip, control panel,
-        live view window and shutter - see
-        https://github.com/WolfgangFahl/scan2wiki/issues/34
+        simple view - shoot, live view, stop and the image
         """
 
         def setup_home():
-            self._settings = {}
-            self._controls = {}
-            # working state: simple Shoot / Live view / Stop above the image
             with ui.row().classes("items-center gap-2"):
                 ui.button("Shoot", icon="camera", on_click=self.shoot)
                 ui.button("Live view", icon="videocam", on_click=self.live_view)
                 ui.button("Stop", icon="stop", on_click=self.stop_view)
                 self.status = ui.label("idle")
             self.image = ui.html(self._img(""))
-            # additional (#34) - LCD strip + control panel, folded away
-            with ui.expansion("Camera settings (#34)", icon="tune").classes(
-                "w-full"
-            ):
-                self._setup_lcd_strip()
-                self._setup_control_panel()
 
         await self.setup_content_div(setup_home)
 
-    def _setup_lcd_strip(self):
+    async def control(self):
         """
-        LCD-styled status strip - camera model, battery, drive mode,
+        cam control view - status strip and control panel
+        see https://github.com/WolfgangFahl/scan2wiki/issues/34
+        """
+
+        def setup_control():
+            self._settings = {}
+            self._controls = {}
+            with ui.column().classes("w-full gap-3"):
+                self._setup_status_strip()
+                self._setup_control_panel()
+
+        await self.setup_content_div(setup_control)
+
+    def _setup_status_strip(self):
+        """
+        status strip - camera model, battery, drive mode,
         shots left, current exposure line
         """
-        with ui.row().classes(
-            "w-full items-center gap-4 rounded"
-        ).style(
-            "background:#111;color:#ffd700;"
-            "font-family:monospace;padding:8px 12px"
-        ):
+        with ui.row().classes("w-full items-center gap-4"):
             self.lcd_model = ui.label("Camera: —")
             self.lcd_battery = ui.label("Battery: —")
             self.lcd_drive = ui.label("Drive: —")
             self.lcd_shots = ui.label("Shots: —")
             self.lcd_expo = ui.label("— · f— · ISO—")
             ui.button(icon="refresh", on_click=self.refresh_settings).props(
-                "flat color=yellow"
+                "flat"
             ).tooltip("Refresh from camera")
 
     def _setup_control_panel(self):
@@ -497,23 +506,21 @@ class Cam2WebSolution(InputWebSolution):
         control panel with AF/MF, destination folder, and camera
         setting dropdowns
         """
-        with ui.column().classes("gap-2").style(
-            "min-width:280px;background:#222;color:#eee;padding:12px;border-radius:6px"
-        ):
+        with ui.column().classes("gap-2").style("min-width:280px"):
             ui.label("Control Panel").style("font-weight:bold")
             with ui.row().classes("items-center gap-2"):
                 self.af_toggle = ui.switch("AF").tooltip("Auto / Manual focus")
                 ui.label("MF")
             self.folder_input = ui.input(
                 "Destination folder", value=""
-            ).props("dense outlined dark")
+            ).props("dense outlined")
             for key, caption in self.CONTROL_KEYS:
                 sel = ui.select(
                     options=["—"],
                     value="—",
                     label=caption,
                     on_change=lambda e, k=key: self.apply_setting(k, e.value),
-                ).props("dense outlined dark").classes("w-full")
+                ).props("dense outlined").classes("w-full")
                 self._controls[key] = sel
             ui.button(
                 "Refresh from camera",
@@ -522,7 +529,7 @@ class Cam2WebSolution(InputWebSolution):
             )
 
     def _img(self, src: str) -> str:
-        style = "max-width:100%;min-height:512px;background:#222;display:block"
+        style = "max-width:100%;min-height:512px;display:block"
         return f'<img src="{src}" style="{style}">' if src else (
             f'<div style="{style}"></div>'
         )
