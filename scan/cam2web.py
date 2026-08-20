@@ -348,10 +348,30 @@ class Cam2WebSolution(InputWebSolution):
 
     async def home(self):
         """
-        home page showing the live view stream
+        remote shooting panel - live view, Shoot, Live view
+        see https://github.com/WolfgangFahl/scan2wiki/issues/34
         """
 
         def setup_home():
-            ui.html('<img src="/stream.mjpg" style="max-width:100%">')
+            self.image = ui.image("/stream.mjpg").style("max-width:100%")
+            with ui.row():
+                ui.button("Shoot", icon="camera", on_click=self.shoot)
+                ui.button("Live view", icon="videocam", on_click=self.live_view)
 
         await self.setup_content_div(setup_home)
+
+    async def shoot(self):
+        """
+        stop the live view, take a still and show it
+        """
+        import asyncio
+
+        self.image.set_source("")
+        await asyncio.sleep(3)
+        self.image.set_source(f"/still.jpg?t={time.time()}")
+
+    def live_view(self):
+        """
+        resume the live view
+        """
+        self.image.set_source(f"/stream.mjpg?t={time.time()}")
