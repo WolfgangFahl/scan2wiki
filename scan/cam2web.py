@@ -249,6 +249,62 @@ class GPhoto2Camera(Camera):
 
         return self.with_retry(op)
 
+    CONFIG_KEYS = [
+        "iso", "whitebalance", "imageformat", "imagequality",
+        "shutterspeed", "aperture", "exposurecompensation",
+        "meteringmode", "focusmode", "capturetarget", "batterylevel",
+    ]
+
+    def _cfg_node(self, root, name):
+        try:
+            return root.get_child_by_name(name)
+        except Exception:
+            return None
+
+    def read_settings(self) -> dict:
+        """
+        read camera settings as {key: {"value": str, "choices": [str]}}
+        - runs under the shared lock, must be called after claim
+        """
+        import gphoto2 as gp
+
+        def op() -> dict:
+            self.switch_mode("still")
+            root = self.camera.get_config()
+            out = {}
+            for key in self.CONFIG_KEYS:
+                node = self._cfg_node(root, key)
+                if node is None:
+                    continue
+                try:
+                    value = str(node.get_value())
+                except Exception:
+                    value = ""
+                choices = []
+                try:
+                    choices = [str(c) for c in node.get_choices()]
+                except Exception:
+                    pass
+                out[key] = {"value": value, "choices": choices}
+            return out
+
+        return self.with_retry(op)
+
+    def write_setting(self, key: str, value: str):
+        """
+        set a single camera config value
+        """
+        def op():
+            self.switch_mode("still")
+            root = self.camera.get_config()
+            node = self._cfg_node(root, key)
+            if node is None:
+                raise ValueError(f"unknown config key: {key}")
+            node.set_value(value)
+            self.camera.set_config(root)
+
+        self.with_retry(op)
+
     def release(self):
         self.close()
         super().release()
@@ -380,21 +436,96 @@ class Cam2WebSolution(InputWebSolution):
         """
         super().__init__(webserver, client)
 
+    CONTROL_KEYS = [
+        ("whitebalance", "WB"),
+        ("meteringmode", "Metering"),
+        ("iso", "ISO"),
+        ("imagequality", "Quality"),
+        ("exposurecompensation", "Exp"),
+        ("shutterspeed", "Shutter"),
+        ("aperture", "Aperture"),
+    ]
+
     async def home(self):
         """
-        remote shooting panel - Shoot, Live view, Stop
-        see https://github.com/WolfgangFahl/scan2wiki/issues/34
+        remote shooting panel - LCD status strip, control panel,
+        live view window and shutter - see
+        https://github.com/WolfgangFahl/scan2wiki/issues/34
         """
 
         def setup_home():
-            with ui.row().classes("items-center gap-2"):
-                ui.button("Shoot", icon="camera", on_click=self.shoot)
+            self._settings = {}
+            self._controls = {}
+            with ui.column().classes("w-full gap-3"):
+                self._setup_lcd_strip()
+                with ui.row().classes("w-full gap-4 items-start"):
+                    self._setup_live_view()
+                    self._setup_control_panel()
+
+        await self.setup_content_div(setup_home)
+
+    def _setup_lcd_strip(self):
+        """
+        LCD-styled status strip - camera model, battery, drive mode,
+        shots left, current exposure line
+        """
+        with ui.row().classes(
+            "w-full items-center justify-between gap-4 rounded"
+        ).style(
+            "background:#111;color:#ffd700;"
+            "font-family:monospace;padding:8px 12px"
+        ):
+            self.lcd_model = ui.label("Camera: —")
+            self.lcd_battery = ui.label("Battery: —")
+            self.lcd_drive = ui.label("Drive: —")
+            self.lcd_shots = ui.label("Shots: —")
+            self.lcd_expo = ui.label("— · f— · ISO—")
+            ui.button(icon="refresh", on_click=self.refresh_settings).props(
+                "flat color=yellow"
+            )
+
+    def _setup_live_view(self):
+        """
+        live view window with round shutter button and mode buttons
+        """
+        with ui.column().classes("gap-2").style("min-width:520px"):
+            self.image = ui.html(self._img(""))
+            with ui.row().classes("items-center gap-3 justify-center"):
+                ui.button(icon="camera", on_click=self.shoot).props(
+                    "round color=red size=xl"
+                ).tooltip("Shoot")
                 ui.button("Live view", icon="videocam", on_click=self.live_view)
                 ui.button("Stop", icon="stop", on_click=self.stop_view)
                 self.status = ui.label("idle")
-            self.image = ui.html(self._img(""))
 
-        await self.setup_content_div(setup_home)
+    def _setup_control_panel(self):
+        """
+        control panel with AF/MF, destination folder, and camera
+        setting dropdowns
+        """
+        with ui.column().classes("gap-2").style(
+            "min-width:280px;background:#222;color:#eee;padding:12px;border-radius:6px"
+        ):
+            ui.label("Control Panel").style("font-weight:bold")
+            with ui.row().classes("items-center gap-2"):
+                self.af_toggle = ui.switch("AF").tooltip("Auto / Manual focus")
+                ui.label("MF")
+            self.folder_input = ui.input(
+                "Destination folder", value=""
+            ).props("dense outlined dark")
+            for key, caption in self.CONTROL_KEYS:
+                sel = ui.select(
+                    options=["—"],
+                    value="—",
+                    label=caption,
+                    on_change=lambda e, k=key: self.apply_setting(k, e.value),
+                ).props("dense outlined dark").classes("w-full")
+                self._controls[key] = sel
+            ui.button(
+                "Refresh from camera",
+                icon="download",
+                on_click=self.refresh_settings,
+            )
 
     def _img(self, src: str) -> str:
         style = "max-width:100%;min-height:512px;background:#222;display:block"
@@ -427,3 +558,63 @@ class Cam2WebSolution(InputWebSolution):
         """
         self.image.content = self._img("")
         self.status.set_text("idle")
+
+    async def refresh_settings(self):
+        """
+        read the current settings from the camera and update the
+        control panel and LCD status strip
+        """
+        camera = self.webserver.camera
+        if not camera.claim(wait=5.0):
+            ui.notify("camera busy", type="warning")
+            return
+        try:
+            self._settings = camera.read_settings()
+        except Exception as ex:
+            ui.notify(f"read settings failed: {ex}", type="negative")
+            self._settings = {}
+        finally:
+            camera.release()
+        for key, sel in self._controls.items():
+            info = self._settings.get(key)
+            if not info:
+                sel.options = ["—"]
+                sel.value = "—"
+                sel.update()
+                continue
+            options = info["choices"] or [info["value"] or "—"]
+            sel.options = options
+            sel.value = info["value"] if info["value"] in options else options[0]
+            sel.update()
+        self._update_lcd()
+
+    def _update_lcd(self):
+        s = self._settings
+        battery = (s.get("batterylevel") or {}).get("value") or "—"
+        shutter = (s.get("shutterspeed") or {}).get("value") or "—"
+        aperture = (s.get("aperture") or {}).get("value") or "—"
+        iso = (s.get("iso") or {}).get("value") or "—"
+        self.lcd_battery.set_text(f"Battery: {battery}")
+        self.lcd_drive.set_text("Drive: single")
+        self.lcd_shots.set_text("Shots: —")
+        self.lcd_model.set_text("Camera: Canon EOS 1000D")
+        self.lcd_expo.set_text(f"{shutter} · f{aperture} · ISO{iso}")
+
+    async def apply_setting(self, key: str, value: str):
+        """
+        write a single setting back to the camera
+        """
+        if value in ("—", None):
+            return
+        camera = self.webserver.camera
+        if not camera.claim(wait=5.0):
+            ui.notify("camera busy", type="warning")
+            return
+        try:
+            camera.write_setting(key, value)
+            ui.notify(f"{key} = {value}")
+        except Exception as ex:
+            ui.notify(f"{key} failed: {ex}", type="negative")
+        finally:
+            camera.release()
+        self._update_lcd()
