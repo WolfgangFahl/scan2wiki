@@ -109,6 +109,21 @@ class Camera:
         """
         return self.submit(self.do_write_setting, key, value)
 
+    def set_live_view(self, on: bool):
+        """
+        switch the live view on or off
+
+        Args:
+            on (bool): True to start the live view
+        """
+        return self.submit(self.do_set_live_view, on)
+
+    def do_set_live_view(self, on: bool):
+        """
+        backend specific live view switch - no operation by default
+        """
+        return None
+
     def do_preview_frame(self) -> bytes:
         raise NotImplementedError
 
@@ -398,6 +413,12 @@ class GPhoto2Camera(Camera):
 
         self.with_retry(op)
 
+    def do_set_live_view(self, on: bool):
+        """
+        switch the camera's viewfinder for the live view
+        """
+        self.set_viewfinder(on)
+
     def shutdown(self):
         """
         stop the live view and close the single session
@@ -481,6 +502,7 @@ class Cam2WebServer(InputWebserver):
             raise ValueError(f"unknown camera backend: {camera_name}")
         self.camera = camera_cls()
         self.fps = getattr(self.args, "fps", 10.0)
+        self.stream_generation = 0
 
     def still(self) -> Response:
         """
@@ -494,30 +516,39 @@ class Cam2WebServer(InputWebserver):
             response = HTMLResponse(content=str(ex), status_code=503)
         return response
 
-    def frames(self):
+    def frames(self, generation: int):
         """
         generator yielding multipart MJPEG frames from the live view -
         each frame is a command on the camera owner thread, so stills
         and configuration commands interleave between frames
+
+        Args:
+            generation (int): only the newest stream keeps running
         """
         delay = 1.0 / self.fps if self.fps > 0 else 0
-        while True:
-            frame = self.camera.preview_frame()
-            yield (
-                b"--frame\r\nContent-Type: image/jpeg\r\n"
-                + f"Content-Length: {len(frame)}\r\n\r\n".encode()
-                + frame
-                + b"\r\n"
-            )
-            if delay:
-                time.sleep(delay)
+        try:
+            while generation == self.stream_generation:
+                frame = self.camera.preview_frame()
+                yield (
+                    b"--frame\r\nContent-Type: image/jpeg\r\n"
+                    + f"Content-Length: {len(frame)}\r\n\r\n".encode()
+                    + frame
+                    + b"\r\n"
+                )
+                if delay:
+                    time.sleep(delay)
+        finally:
+            if generation == self.stream_generation:
+                self.camera.set_live_view(False)
 
     def stream(self) -> Response:
         """
-        serve the live view as an MJPEG stream
+        serve the live view as an MJPEG stream - a new stream ends
+        the previous one so stale connections cannot pile up
         """
+        self.stream_generation += 1
         response = StreamingResponse(
-            self.frames(),
+            self.frames(self.stream_generation),
             media_type="multipart/x-mixed-replace; boundary=frame",
         )
         return response
@@ -597,7 +628,7 @@ class Cam2WebSolution(InputWebSolution):
                 with ui.row().classes("w-full gap-4 items-start"):
                     self.image = ui.html(self._img(""))
                     self._setup_control_panel()
-            self.refresh_settings()
+            # no automatic camera read on page load - Refresh is explicit
 
         await self.setup_content_div(setup_control)
 
@@ -626,6 +657,7 @@ class Cam2WebSolution(InputWebSolution):
                 self.lcd_metering = ui.label("Metering —")
                 self.lcd_drive = ui.label("Drive —")
                 self.lcd_battery = ui.label("Batt —")
+                self.lcd_target = ui.label("Target —")
             self.lcd_model = ui.label("—").style("font-size:0.8rem")
 
     def _setup_control_panel(self):
@@ -757,34 +789,53 @@ class Cam2WebSolution(InputWebSolution):
         """
         remaining shots - the camera only reports a meaningful count
         for the memory card; for internal RAM the value is a free
-        space estimate and is not shown as a picture count
+        space estimate and no picture count is shown
 
         Returns:
             str: the shots display text
         """
-        shots = self._value("availableshots")
         target = self._value("capturetarget")
-        text = f"[{shots}]" if "card" in target.lower() else "[RAM]"
+        shots = self._value("availableshots") if "card" in target.lower() else "—"
+        return f"[{shots}]"
+
+    def _lcd_value(self, key: str, prefix: str = "") -> str:
+        """
+        camera style rendering of a config value - non numeric
+        automatics are shown as AUTO
+
+        Args:
+            key (str): the gphoto2 config key
+            prefix (str): prefix for numeric values e.g. f for the aperture
+
+        Returns:
+            str: the display text
+        """
+        value = self._value(key)
+        if value[:1].isdigit():
+            text = f"{prefix}{value}"
+        elif "auto" in value.lower():
+            text = f"{prefix} AUTO".strip()
+        else:
+            text = value
         return text
 
     def _update_lcd(self):
         """
         update the LCD panel from the settings read from the camera
         """
-        shutter = self._value("shutterspeed")
-        aperture = self._value("aperture")
-        iso = self._value("iso")
+        shutter = self._lcd_value("shutterspeed")
+        f_stop = self._lcd_value("aperture", "f")
+        iso = self._lcd_value("iso", "ISO ")
         counter = self._value("shuttercounter")
         model = self._value("cameramodel")
-        # the f stop prefix only makes sense for a numeric aperture
-        f_stop = f"f{aperture}" if aperture[:1].isdigit() else aperture
-        self.lcd_expo.set_text(f"{shutter}  {f_stop}  ISO{iso}")
+        self.lcd_expo.set_text(f"{shutter}  {f_stop}  {iso}")
         self.lcd_shots.set_text(self._shots_text())
         self.lcd_mode.set_text(f"Mode {self._value('autoexposuremode')}")
         self.lcd_wb.set_text(f"WB {self._value('whitebalance')}")
         self.lcd_metering.set_text(f"Metering {self._value('meteringmode')}")
         self.lcd_drive.set_text(f"Drive {self._value('drivemode')}")
         self.lcd_battery.set_text(f"Batt {self._value('batterylevel')}")
+        self.lcd_target.set_text(f"Target {self._value('capturetarget')}")
         self.lcd_model.set_text(f"{model} · shutter count {counter}")
 
     def apply_setting(self, key: str, value: str):
