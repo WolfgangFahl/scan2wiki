@@ -42,7 +42,10 @@ class Camera:
             bool: True if the camera was claimed
         """
         self.stop_stream.set()
-        claimed = self.lock.acquire(blocking=wait > 0, timeout=wait)
+        if wait > 0:
+            claimed = self.lock.acquire(blocking=True, timeout=wait)
+        else:
+            claimed = self.lock.acquire(blocking=False)
         self.stop_stream.clear()
         return claimed
 
