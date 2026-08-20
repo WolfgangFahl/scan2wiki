@@ -7,10 +7,16 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 @author: wf
 """
 
+import os
 import sys
 import threading
 import time
 from dataclasses import dataclass
+
+# libgphoto2 translates its config values via gettext - keep them
+# English independent of the host locale
+os.environ["LANG"] = "C"
+os.environ["LC_ALL"] = "C"
 
 from basemkit.shell import Shell
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
