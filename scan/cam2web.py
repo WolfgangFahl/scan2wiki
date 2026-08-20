@@ -482,7 +482,7 @@ class Cam2WebSolution(InputWebSolution):
         def setup_control():
             self._settings = {}
             self._controls = {}
-            with ui.column().classes("w-full gap-3"):
+            with ui.column().classes("w-full gap-3") as self.control_container:
                 self._setup_status_strip()
                 self._setup_control_panel()
 
@@ -569,18 +569,33 @@ class Cam2WebSolution(InputWebSolution):
         """
         self.task_runner.run_blocking(self.read_settings)
 
+    def notify(self, msg: str, msg_type: str = None):
+        """
+        notify from a background thread - the slot has to be entered
+        explicitly, see the ngwidgets issue 1786 demo
+
+        Args:
+            msg (str): the message to show
+            msg_type (str): the nicegui notification type
+        """
+        with self.control_container:
+            if msg_type:
+                ui.notify(msg, type=msg_type)
+            else:
+                ui.notify(msg)
+
     def read_settings(self):
         """
         blocking camera read - runs in a TaskRunner thread
         """
         camera = self.webserver.camera
         if not camera.claim(wait=5.0):
-            ui.notify("camera busy", type="warning")
+            self.notify("camera busy", "warning")
             return
         try:
             self._settings = camera.read_settings()
         except Exception as ex:
-            ui.notify(f"read settings failed: {ex}", type="negative")
+            self.notify(f"read settings failed: {ex}", "negative")
             self._settings = {}
         finally:
             camera.release()
@@ -590,18 +605,21 @@ class Cam2WebSolution(InputWebSolution):
         """
         update the control panel selects and the status strip
         """
-        for key, sel in self._controls.items():
-            info = self._settings.get(key)
-            if not info:
-                sel.options = ["—"]
-                sel.value = "—"
+        with self.control_container:
+            for key, sel in self._controls.items():
+                info = self._settings.get(key)
+                if not info:
+                    sel.options = ["—"]
+                    sel.value = "—"
+                    sel.update()
+                    continue
+                options = info["choices"] or [info["value"] or "—"]
+                sel.options = options
+                sel.value = (
+                    info["value"] if info["value"] in options else options[0]
+                )
                 sel.update()
-                continue
-            options = info["choices"] or [info["value"] or "—"]
-            sel.options = options
-            sel.value = info["value"] if info["value"] in options else options[0]
-            sel.update()
-        self._update_lcd()
+            self._update_lcd()
 
     def _update_lcd(self):
         s = self._settings
@@ -629,13 +647,14 @@ class Cam2WebSolution(InputWebSolution):
         """
         camera = self.webserver.camera
         if not camera.claim(wait=5.0):
-            ui.notify("camera busy", type="warning")
+            self.notify("camera busy", "warning")
             return
         try:
             camera.write_setting(key, value)
-            ui.notify(f"{key} = {value}")
+            self.notify(f"{key} = {value}")
         except Exception as ex:
-            ui.notify(f"{key} failed: {ex}", type="negative")
+            self.notify(f"{key} failed: {ex}", "negative")
         finally:
             camera.release()
-        self._update_lcd()
+        with self.control_container:
+            self._update_lcd()
