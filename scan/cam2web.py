@@ -678,6 +678,20 @@ class Cam2WebSolution(InputWebSolution):
         """
         return (self._settings.get(key) or {}).get("value") or "—"
 
+    def _shots_text(self) -> str:
+        """
+        remaining shots - the camera only reports a meaningful count
+        for the memory card; for internal RAM the value is a free
+        space estimate and is not shown as a picture count
+
+        Returns:
+            str: the shots display text
+        """
+        shots = self._value("availableshots")
+        target = self._value("capturetarget")
+        text = f"[{shots}]" if "card" in target.lower() else "[RAM]"
+        return text
+
     def _update_lcd(self):
         """
         update the LCD panel from the settings read from the camera
@@ -685,11 +699,12 @@ class Cam2WebSolution(InputWebSolution):
         shutter = self._value("shutterspeed")
         aperture = self._value("aperture")
         iso = self._value("iso")
-        shots = self._value("availableshots")
         counter = self._value("shuttercounter")
         model = self._value("cameramodel")
-        self.lcd_expo.set_text(f"{shutter}  f{aperture}  ISO{iso}")
-        self.lcd_shots.set_text(f"[{shots}]")
+        # the f stop prefix only makes sense for a numeric aperture
+        f_stop = f"f{aperture}" if aperture[:1].isdigit() else aperture
+        self.lcd_expo.set_text(f"{shutter}  {f_stop}  ISO{iso}")
+        self.lcd_shots.set_text(self._shots_text())
         self.lcd_mode.set_text(f"Mode {self._value('autoexposuremode')}")
         self.lcd_wb.set_text(f"WB {self._value('whitebalance')}")
         self.lcd_metering.set_text(f"Metering {self._value('meteringmode')}")
