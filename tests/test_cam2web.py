@@ -125,6 +125,31 @@ class TestCam2Web(Basetest):
         self.assertEqual("100", camera.settings["iso"]["value"])
         camera.shutdown()
 
+    def test_recovery(self):
+        """
+        test that a camera error is recovered by rebuilding the
+        session once and retrying the operation
+        """
+        import gphoto2 as gp
+
+        camera = CountingCamera()
+        camera.MIN_TRANSITION_INTERVAL = 0.0
+        camera.failures = 1
+
+        def flaky() -> bytes:
+            if camera.failures:
+                camera.failures -= 1
+                raise gp.GPhoto2Error(-10)
+            return b"\xff\xd8ok\xff\xd9"
+
+        camera.open()
+        jpeg_bytes = camera.with_retry(flaky)
+        self.assertEqual(b"\xff\xd8ok\xff\xd9", jpeg_bytes)
+        # the session was rebuilt exactly once
+        self.assertEqual(1, camera.counts["exit"])
+        self.assertEqual(2, camera.counts["init"])
+        camera.shutdown()
+
     def test_transition_rate_limit(self):
         """
         test that the camera is protected against viewfinder churn

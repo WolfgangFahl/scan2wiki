@@ -316,12 +316,9 @@ class GPhoto2Camera(Camera):
         try:
             result = operation()
         except gp.GPhoto2Error:
-            try:
-                self.recover()
-                result = operation()
-            except Exception:
-                self.release()
-                raise
+            # one recovery attempt - the session is rebuilt only here
+            self.recover()
+            result = operation()
         return result
 
     def do_preview_frame(self) -> bytes:
