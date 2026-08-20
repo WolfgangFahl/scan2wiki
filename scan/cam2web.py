@@ -251,9 +251,14 @@ class GPhoto2Camera(Camera):
         return self.with_retry(op)
 
     CONFIG_KEYS = [
-        "iso", "whitebalance", "imageformat", "imagequality",
+        # imgsettings
+        "iso", "whitebalance", "imageformat", "colorspace",
+        # capturesettings
         "shutterspeed", "aperture", "exposurecompensation",
-        "meteringmode", "focusmode", "capturetarget", "batterylevel",
+        "meteringmode", "focusmode", "drivemode", "autoexposuremode",
+        "picturestyle", "capturetarget",
+        # status
+        "batterylevel", "availableshots", "shuttercounter", "cameramodel",
     ]
 
     def _cfg_node(self, root, name):
@@ -442,14 +447,21 @@ class Cam2WebSolution(InputWebSolution):
         super().__init__(webserver, client)
         self.task_runner = TaskRunner(timeout=30.0)
 
+    # captions for the camera config keys - key names as reported by
+    # gphoto2 --list-config for the attached camera
     CONTROL_KEYS = [
+        ("autoexposuremode", "Mode"),
         ("whitebalance", "WB"),
         ("meteringmode", "Metering"),
         ("iso", "ISO"),
-        ("imagequality", "Quality"),
+        ("imageformat", "Quality"),
         ("exposurecompensation", "Exp"),
         ("shutterspeed", "Shutter"),
         ("aperture", "Aperture"),
+        ("drivemode", "Drive"),
+        ("picturestyle", "Style"),
+        ("focusmode", "Focus"),
+        ("capturetarget", "Target"),
     ]
 
     def configure_menu(self):
@@ -483,25 +495,50 @@ class Cam2WebSolution(InputWebSolution):
             self._settings = {}
             self._controls = {}
             with ui.column().classes("w-full gap-3") as self.control_container:
-                self._setup_status_strip()
-                self._setup_control_panel()
+                self._setup_lcd()
+                with ui.row().classes("items-center gap-2"):
+                    ui.button("Shoot", icon="camera", on_click=self.shoot)
+                    ui.button(
+                        "Live view", icon="videocam", on_click=self.live_view
+                    )
+                    ui.button("Stop", icon="stop", on_click=self.stop_view)
+                    ui.button(
+                        "Refresh", icon="refresh", on_click=self.refresh_settings
+                    )
+                    self.status = ui.label("idle")
+                with ui.row().classes("w-full gap-4 items-start"):
+                    self.image = ui.html(self._img(""))
+                    self._setup_control_panel()
+            self.refresh_settings()
 
         await self.setup_content_div(setup_control)
 
-    def _setup_status_strip(self):
+    # gray LCD emulation - the camera's top display
+    LCD_STYLE = (
+        "background:#c8ccc0;color:#1a1a1a;font-family:monospace;"
+        "padding:10px 14px;border:2px solid #8b8f85;border-radius:4px"
+    )
+
+    def _setup_lcd(self):
         """
-        status strip - camera model, battery, drive mode,
-        shots left, current exposure line
+        gray LCD panel emulating the camera top display - exposure
+        line, mode, WB, metering, battery and remaining shots
         """
-        with ui.row().classes("w-full items-center gap-4"):
-            self.lcd_model = ui.label("Camera: —")
-            self.lcd_battery = ui.label("Battery: —")
-            self.lcd_drive = ui.label("Drive: —")
-            self.lcd_shots = ui.label("Shots: —")
-            self.lcd_expo = ui.label("— · f— · ISO—")
-            ui.button(icon="refresh", on_click=self.refresh_settings).props(
-                "flat"
-            ).tooltip("Refresh from camera")
+        with ui.column().classes("gap-1").style(self.LCD_STYLE):
+            with ui.row().classes("items-center gap-6"):
+                self.lcd_expo = ui.label("—  f—  ISO—").style(
+                    "font-size:1.6rem;font-weight:bold"
+                )
+                self.lcd_shots = ui.label("[---]").style(
+                    "font-size:1.6rem;font-weight:bold"
+                )
+            with ui.row().classes("items-center gap-4"):
+                self.lcd_mode = ui.label("Mode —")
+                self.lcd_wb = ui.label("WB —")
+                self.lcd_metering = ui.label("Metering —")
+                self.lcd_drive = ui.label("Drive —")
+                self.lcd_battery = ui.label("Batt —")
+            self.lcd_model = ui.label("—").style("font-size:0.8rem")
 
     def _setup_control_panel(self):
         """
@@ -621,17 +658,36 @@ class Cam2WebSolution(InputWebSolution):
                 sel.update()
             self._update_lcd()
 
+    def _value(self, key: str) -> str:
+        """
+        current value of the given camera config key
+
+        Args:
+            key (str): the gphoto2 config key
+
+        Returns:
+            str: the value or an em dash if unavailable
+        """
+        return (self._settings.get(key) or {}).get("value") or "—"
+
     def _update_lcd(self):
-        s = self._settings
-        battery = (s.get("batterylevel") or {}).get("value") or "—"
-        shutter = (s.get("shutterspeed") or {}).get("value") or "—"
-        aperture = (s.get("aperture") or {}).get("value") or "—"
-        iso = (s.get("iso") or {}).get("value") or "—"
-        self.lcd_battery.set_text(f"Battery: {battery}")
-        self.lcd_drive.set_text("Drive: single")
-        self.lcd_shots.set_text("Shots: —")
-        self.lcd_model.set_text("Camera: Canon EOS 1000D")
-        self.lcd_expo.set_text(f"{shutter} · f{aperture} · ISO{iso}")
+        """
+        update the LCD panel from the settings read from the camera
+        """
+        shutter = self._value("shutterspeed")
+        aperture = self._value("aperture")
+        iso = self._value("iso")
+        shots = self._value("availableshots")
+        counter = self._value("shuttercounter")
+        model = self._value("cameramodel")
+        self.lcd_expo.set_text(f"{shutter}  f{aperture}  ISO{iso}")
+        self.lcd_shots.set_text(f"[{shots}]")
+        self.lcd_mode.set_text(f"Mode {self._value('autoexposuremode')}")
+        self.lcd_wb.set_text(f"WB {self._value('whitebalance')}")
+        self.lcd_metering.set_text(f"Metering {self._value('meteringmode')}")
+        self.lcd_drive.set_text(f"Drive {self._value('drivemode')}")
+        self.lcd_battery.set_text(f"Batt {self._value('batterylevel')}")
+        self.lcd_model.set_text(f"{model} · shutter count {counter}")
 
     def apply_setting(self, key: str, value: str):
         """
