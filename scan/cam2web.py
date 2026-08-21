@@ -300,26 +300,78 @@ class GPhoto2Camera(Camera):
         self.os_workaround()
         self.open()
 
+    # gphoto2 error codes that a session rebuild can cure - measured
+    # on the EOS 1000D: -53 could not claim the USB device is caused
+    # by the OS daemon, -7 and -1 by a stale session. -110 I/O in
+    # progress and the Canon 2019 release failure are camera states
+    # that a rebuild does not cure, so they are reported as is
+    RECOVERABLE = (-53, -7, -1, -52)
+
     def with_retry(self, operation):
         """
-        run the given camera operation, recovering once on GPhoto2Error;
-        on second failure release the claim and propagate the error
+        run the given camera operation, rebuilding the session once
+        for errors a rebuild can cure
 
         Args:
             operation: callable performing the camera operation
 
         Returns:
-            bytes: JPEG image data
+            the operation result
         """
         import gphoto2 as gp
 
         try:
             result = operation()
-        except gp.GPhoto2Error:
+        except gp.GPhoto2Error as ex:
+            if ex.code not in self.RECOVERABLE:
+                raise
             # one recovery attempt - the session is rebuilt only here
             self.recover()
             result = operation()
         return result
+
+    def status(self) -> str:
+        """
+        one line camera status for the user interface
+
+        Returns:
+            str: what the camera is currently able to do
+        """
+        import gphoto2 as gp
+
+        try:
+            self.submit(self.do_status, timeout=20.0)
+            text = "camera ready"
+        except gp.GPhoto2Error as ex:
+            text = self.explain(ex)
+        except Exception as ex:
+            text = str(ex)
+        return text
+
+    def do_status(self):
+        self.ensure_open()
+        self.camera.get_config()
+
+    @classmethod
+    def explain(cls, ex) -> str:
+        """
+        turn a gphoto2 error into an instruction the user can act on
+
+        Args:
+            ex: the GPhoto2Error
+
+        Returns:
+            str: the explanation
+        """
+        explanations = {
+            -110: "camera busy - unplug and replug the USB cable",
+            -53: "another program holds the camera",
+            -10: "camera not responding - unplug and replug the USB cable",
+        }
+        text = explanations.get(getattr(ex, "code", None), str(ex))
+        if "2019" in str(ex):
+            text = "camera refuses to release - check lens switch on MF, mode dial and lens cap"
+        return text
 
     def do_preview_frame(self) -> bytes:
         def op() -> bytes:
@@ -484,6 +536,10 @@ class Cam2WebServer(InputWebserver):
         def still():
             return self.still()
 
+        @app.get("/last.jpg")
+        def last():
+            return self.last()
+
         @app.get("/stream.mjpg")
         def stream():
             return self.stream()
@@ -500,6 +556,22 @@ class Cam2WebServer(InputWebserver):
         self.camera = camera_cls()
         self.fps = getattr(self.args, "fps", 10.0)
         self.stream_generation = 0
+        self.last_error = None
+        self.last_still = None
+
+    def explain_error(self, ex) -> str:
+        """
+        readable explanation for a camera error
+
+        Args:
+            ex: the exception
+
+        Returns:
+            str: the explanation
+        """
+        explain = getattr(self.camera, "explain", None)
+        text = explain(ex) if explain else str(ex)
+        return text
 
     def still(self) -> Response:
         """
@@ -508,9 +580,21 @@ class Cam2WebServer(InputWebserver):
         """
         try:
             jpeg_bytes = self.camera.capture_still()
+            self.last_error = None
             response = Response(content=jpeg_bytes, media_type="image/jpeg")
         except Exception as ex:
-            response = HTMLResponse(content=str(ex), status_code=503)
+            self.last_error = self.explain_error(ex)
+            response = HTMLResponse(content=self.last_error, status_code=503)
+        return response
+
+    def last(self) -> Response:
+        """
+        serve the most recent picture from the cache
+        """
+        if self.last_still:
+            response = Response(content=self.last_still, media_type="image/jpeg")
+        else:
+            response = HTMLResponse(content="no picture taken yet", status_code=404)
         return response
 
     def frames(self, generation: int):
@@ -525,7 +609,12 @@ class Cam2WebServer(InputWebserver):
         delay = 1.0 / self.fps if self.fps > 0 else 0
         try:
             while generation == self.stream_generation:
-                frame = self.camera.preview_frame()
+                try:
+                    frame = self.camera.preview_frame()
+                except Exception as ex:
+                    # end the stream cleanly - the panel reports the state
+                    self.last_error = self.explain_error(ex)
+                    break
                 yield (
                     b"--frame\r\nContent-Type: image/jpeg\r\n"
                     + f"Content-Length: {len(frame)}\r\n\r\n".encode()
@@ -592,12 +681,18 @@ class Cam2WebSolution(InputWebSolution):
         """
 
         def setup_home():
-            with ui.row().classes("items-center gap-2"):
-                ui.button("Shoot", icon="camera", on_click=self.shoot)
-                ui.button("Live view", icon="videocam", on_click=self.live_view)
-                ui.button("Stop", icon="stop", on_click=self.stop_view)
-                self.status = ui.label("idle")
-            self.image = ui.html(self._img(""))
+            with ui.column().classes("w-full gap-3") as self.container:
+                with ui.row().classes("items-center gap-2"):
+                    ui.button("Shoot", icon="camera", on_click=self.shoot)
+                    ui.button(
+                        "Live view", icon="videocam", on_click=self.live_view
+                    )
+                    ui.button("Stop", icon="stop", on_click=self.stop_view)
+                    ui.button(
+                        "Check camera", icon="help", on_click=self.check_camera
+                    )
+                    self.status = ui.label("idle")
+                self.image = ui.html(self._img(""))
 
         await self.setup_content_div(setup_home)
 
@@ -610,7 +705,7 @@ class Cam2WebSolution(InputWebSolution):
         def setup_control():
             self._settings = {}
             self._controls = {}
-            with ui.column().classes("w-full gap-3") as self.control_container:
+            with ui.column().classes("w-full gap-3") as self.container:
                 self._setup_lcd()
                 with ui.row().classes("items-center gap-2"):
                     ui.button("Shoot", icon="camera", on_click=self.shoot)
@@ -695,12 +790,46 @@ class Cam2WebSolution(InputWebSolution):
 
     def shoot(self):
         """
-        take a still - the server side stops any active stream and
-        serves the JPEG, the browser then shows it in place
+        take a still through the camera owner thread and show it -
+        a camera problem is reported as a readable state, never as
+        a traceback
         """
         self.status.set_text("shooting ...")
-        self.image.content = self._img(self._bust("/still.jpg"))
-        self.status.set_text("still")
+        self.task_runner.run_blocking(self.do_shoot)
+
+    def check_camera(self):
+        """
+        report what the camera is currently able to do
+        """
+        self.status.set_text("checking ...")
+        self.task_runner.run_blocking(self.do_check_camera)
+
+    def do_check_camera(self):
+        """
+        blocking camera check - runs in a TaskRunner thread
+        """
+        camera = self.webserver.camera
+        status = camera.status() if hasattr(camera, "status") else "camera ready"
+        with self.container:
+            self.status.set_text(status)
+
+    def do_shoot(self):
+        """
+        blocking still capture - runs in a TaskRunner thread, the
+        picture is cached by the webserver and shown from /last.jpg
+        """
+        webserver = self.webserver
+        try:
+            webserver.last_still = webserver.camera.capture_still()
+            webserver.last_error = None
+            with self.container:
+                self.image.content = self._img(self._bust("/last.jpg"))
+                self.status.set_text("still")
+        except Exception as ex:
+            msg = webserver.explain_error(ex)
+            with self.container:
+                self.status.set_text(msg)
+                ui.notify(msg, type="warning")
 
     def live_view(self):
         """
@@ -732,7 +861,7 @@ class Cam2WebSolution(InputWebSolution):
             msg (str): the message to show
             msg_type (str): the nicegui notification type
         """
-        with self.control_container:
+        with self.container:
             if msg_type:
                 ui.notify(msg, type=msg_type)
             else:
@@ -754,7 +883,7 @@ class Cam2WebSolution(InputWebSolution):
         """
         update the control panel selects and the status strip
         """
-        with self.control_container:
+        with self.container:
             for key, sel in self._controls.items():
                 info = self._settings.get(key)
                 if not info:

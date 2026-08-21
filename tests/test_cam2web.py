@@ -127,7 +127,7 @@ class TestCam2Web(Basetest):
 
     def test_recovery(self):
         """
-        test that a camera error is recovered by rebuilding the
+        test that a claim error is recovered by rebuilding the
         session once and retrying the operation
         """
         import gphoto2 as gp
@@ -139,7 +139,8 @@ class TestCam2Web(Basetest):
         def flaky() -> bytes:
             if camera.failures:
                 camera.failures -= 1
-                raise gp.GPhoto2Error(-10)
+                # could not claim the USB device - a rebuild cures this
+                raise gp.GPhoto2Error(-53)
             return b"\xff\xd8ok\xff\xd9"
 
         camera.open()
@@ -148,6 +149,30 @@ class TestCam2Web(Basetest):
         # the session was rebuilt exactly once
         self.assertEqual(1, camera.counts["exit"])
         self.assertEqual(2, camera.counts["init"])
+        camera.shutdown()
+
+    def test_no_retry_for_stuck_camera(self):
+        """
+        test that an I/O in progress state is reported instead of
+        being retried - measured on the EOS 1000D it is not cured
+        by a session rebuild, only by replugging the USB cable
+        """
+        import gphoto2 as gp
+
+        camera = CountingCamera()
+        calls = []
+
+        def stuck():
+            calls.append(1)
+            raise gp.GPhoto2Error(-110)
+
+        camera.open()
+        with self.assertRaises(gp.GPhoto2Error):
+            camera.with_retry(stuck)
+        # tried once, no session rebuild
+        self.assertEqual(1, len(calls))
+        self.assertEqual(0, camera.counts["exit"])
+        self.assertIn("replug", camera.explain(gp.GPhoto2Error(-110)))
         camera.shutdown()
 
     def test_transition_rate_limit(self):
