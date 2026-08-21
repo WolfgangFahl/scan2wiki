@@ -249,6 +249,21 @@ class GPhoto2Camera(Camera):
         if self.camera is None:
             self.open()
 
+    def usb_reset(self):
+        """
+        reset the USB connection - the only remote remedy for a
+        camera that reports I/O in progress; a mechanical reset by
+        replugging the cable is not always possible
+        """
+        try:
+            self.close()
+        except Exception:
+            self.camera = None
+        self.os_workaround()
+        self.shell.run("gphoto2 --reset", debug=False)
+        time.sleep(1.0)
+        self.viewfinder_on = False
+
     def check_transition_rate(self):
         """
         refuse to churn the camera - a viewfinder transition is a
@@ -693,6 +708,9 @@ class Cam2WebSolution(InputWebSolution):
                     ui.button(
                         "Check camera", icon="help", on_click=self.check_camera
                     )
+                    ui.button(
+                        "Reset USB", icon="usb", on_click=self.reset_camera
+                    )
                     self.status = ui.label("idle")
                 self.image = ui.html(self._img(""))
 
@@ -805,6 +823,24 @@ class Cam2WebSolution(InputWebSolution):
         """
         self.status.set_text("checking ...")
         self.task_runner.run_blocking(self.do_check_camera)
+
+    def reset_camera(self):
+        """
+        reset the USB connection to the camera
+        """
+        self.status.set_text("resetting ...")
+        self.task_runner.run_blocking(self.do_reset_camera)
+
+    def do_reset_camera(self):
+        """
+        blocking USB reset - runs in a TaskRunner thread
+        """
+        camera = self.webserver.camera
+        if hasattr(camera, "usb_reset"):
+            camera.submit(camera.usb_reset, timeout=60.0)
+        status = camera.status() if hasattr(camera, "status") else "camera ready"
+        with self.container:
+            self.status.set_text(status)
 
     def do_check_camera(self):
         """
