@@ -375,6 +375,7 @@ class GPhoto2Camera(Camera):
 
     def do_preview_frame(self) -> bytes:
         def op() -> bytes:
+            self.ensure_open()
             self.set_viewfinder(True)
             camera_file = self.camera.capture_preview()
             file_data = camera_file.get_data_and_size()
@@ -386,6 +387,7 @@ class GPhoto2Camera(Camera):
         import gphoto2 as gp
 
         def op() -> bytes:
+            self.ensure_open()
             was_on = self.viewfinder_on
             self.set_viewfinder(False)
             try:
