@@ -805,8 +805,11 @@ class Cam2WebServer(InputWebserver):
         # leaving the camera in live view wedges it - the next session
         # then only gets I/O in progress until the cable is replugged
         atexit.register(self.close_camera)
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            signal.signal(sig, self.on_signal)
+        # signal handlers are only available in the main thread -
+        # a threaded test server runs without them
+        if threading.current_thread() is threading.main_thread():
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                signal.signal(sig, self.on_signal)
         app.on_shutdown(self.close_camera)
 
     def on_signal(self, signum, frame):
