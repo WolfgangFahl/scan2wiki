@@ -1540,6 +1540,29 @@ class Cam2WebSolution(InputWebSolution):
         camera = self.webserver.camera
         camera.rotate_by(delta)
         self.status.set_text(f"rotation {camera.rotation}")
+        if self.magnify.mode == MagnifyState.SELECT:
+            # the frozen full frame does not rotate by itself - and a
+            # plain preview would freeze the magnified area, so the
+            # refresh cycles the camera zoom like back_to_select
+            self.task_runner.run_blocking(self.refresh_frozen)
+
+    def refresh_frozen(self):
+        """
+        blocking refresh of the frozen full frame in selection mode -
+        the camera zoom is released and re-engaged around the preview
+        """
+        webserver = self.webserver
+        camera = webserver.camera
+        try:
+            camera.stop_camera_zoom()
+            webserver.last_full = camera.preview_frame()
+            camera.start_camera_zoom()
+        except Exception as ex:
+            logger.error(f"frozen frame refresh failed: {ex}")
+            self.notify(f"camera zoom failed: {ex}", "negative")
+        with self.container:
+            self.image.set_source(self._bust("/full.jpg"))
+            self.draw_frame()
 
     def set_magnify(self, on: bool):
         """
