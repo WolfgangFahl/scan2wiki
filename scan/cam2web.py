@@ -65,6 +65,9 @@ class Camera:
         self.zoom_dirty = False
         # (width, height) of the last full preview frame
         self.frame_size = None
+        # native pixel size of the camera's zoom window, measured
+        # from the zoom frames themselves
+        self.zoom_window_size = None
         self.commands = queue.Queue()
         self.worker = threading.Thread(target=self._work, daemon=True)
         self.worker.start()
@@ -208,8 +211,7 @@ class Camera:
         Returns:
             tuple: (x0, y0, width, height) fractions
         """
-        width = 1.0 / self.zoom_level
-        height = 1.0 / self.zoom_level
+        width, height = self.window_fractions()
         x0 = min(max(self.zoom_fx - width / 2, 0.0), 1.0 - width)
         y0 = min(max(self.zoom_fy - height / 2, 0.0), 1.0 - height)
         return x0, y0, width, height
@@ -228,7 +230,10 @@ class Camera:
         """
         the zoom view frame - the camera itself magnifies via its
         native zoom as in EOS Utility, so the preview already is the
-        framed area at native resolution; there is no digital zoom
+        framed area at native resolution; there is no digital zoom.
+        The frame's own pixel size is the sensor window - recorded
+        before the display rotation, it makes the magnifying frame
+        geometry measured instead of modelled
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
         """
         if not self.camera_zoom:
@@ -238,8 +243,38 @@ class Camera:
         if self.zoom_dirty:
             self.do_apply_camera_zoom()
             self.zoom_dirty = False
-        frame = self.apply_rotation(self.do_preview_frame())
+        frame = self.do_preview_frame()
+        self.zoom_window_size = self.jpeg_size(frame)
+        frame = self.apply_rotation(frame)
         return frame
+
+    def jpeg_size(self, jpeg_bytes: bytes):
+        """
+        pixel size of the given JPEG, None if unparseable
+        """
+        try:
+            size = Image.open(BytesIO(jpeg_bytes)).size
+        except Exception:
+            size = None
+        return size
+
+    def window_fractions(self) -> tuple:
+        """
+        the magnifying window size as fractions of the full view in
+        display orientation - read from the native pixel size of the
+        zoom frame against the sensor full size; the 1/level model is
+        only the fallback before the first zoom frame
+        """
+        fullsize = getattr(self, "ZOOM_POSITION_SIZE", None)
+        if self.zoom_window_size and fullsize:
+            wx = self.zoom_window_size[0] / fullsize[0]
+            wy = self.zoom_window_size[1] / fullsize[1]
+        else:
+            wx = 1.0 / self.zoom_level
+            wy = 1.0 / self.zoom_level
+        if self.rotation % 180 == 90:
+            wx, wy = wy, wx
+        return wx, wy
 
     def start_camera_zoom(self) -> bool:
         """
@@ -816,10 +851,16 @@ class GPhoto2Camera(Camera):
                 sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
                 # the camera anchors eoszoomposition at the window
                 # top-left corner - measured 2026-08-22 by a 9 point
-                # sweep: window center = commanded + half a window
-                window = 1.0 / self.zoom_level
-                sx = min(max(sx - window / 2, 0.0), 1.0 - window)
-                sy = min(max(sy - window / 2, 0.0), 1.0 - window)
+                # sweep: window center = commanded + half a window;
+                # window size per axis from the measured zoom frame
+                if self.zoom_window_size:
+                    wx = self.zoom_window_size[0] / self.ZOOM_POSITION_SIZE[0]
+                    wy = self.zoom_window_size[1] / self.ZOOM_POSITION_SIZE[1]
+                else:
+                    wx = 1.0 / self.zoom_level
+                    wy = 1.0 / self.zoom_level
+                sx = min(max(sx - wx / 2, 0.0), 1.0 - wx)
+                sy = min(max(sy - wy / 2, 0.0), 1.0 - wy)
                 x = int(sx * self.ZOOM_POSITION_SIZE[0])
                 y = int(sy * self.ZOOM_POSITION_SIZE[1])
                 position.set_value(f"{x},{y}")
