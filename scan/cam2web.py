@@ -749,9 +749,11 @@ class GPhoto2Camera(Camera):
         """
         self.set_viewfinder(on)
 
-    # coordinate space of the eoszoomposition config entry -
-    # libgphoto2 passes the raw values to the camera
-    ZOOM_POSITION_SIZE = (8192, 8192)
+    # eoszoomposition is addressed in full-size image coordinates -
+    # 3888x2592 for the Canon EOS 1000D; the former 8192x8192 guess
+    # made every position overshoot and clamp to the same wrong spot
+    # see https://github.com/WolfgangFahl/scan2wiki/issues/39
+    ZOOM_POSITION_SIZE = (3888, 2592)
 
     def unrotate_fraction(self, fx: float, fy: float) -> tuple:
         """
@@ -1341,6 +1343,23 @@ class Cam2WebSolution(InputWebSolution):
                 "", events=["mousedown"], on_mouse=self.on_zoom_mouse
             ).style("max-width:28%")
             self.zoom_image.set_visibility(False)
+        # magnifying frame position readout below the video
+        # see https://github.com/WolfgangFahl/scan2wiki/issues/39
+        self.position_label = ui.label("")
+
+    def show_position(self):
+        """
+        show the magnifying frame center below the video - display
+        fraction and the position sent to the camera
+        """
+        camera = self.webserver.camera
+        text = f"frame {camera.zoom_fx:.3f},{camera.zoom_fy:.3f}"
+        if hasattr(camera, "unrotate_fraction"):
+            sx, sy = camera.unrotate_fraction(camera.zoom_fx, camera.zoom_fy)
+            x = int(sx * camera.ZOOM_POSITION_SIZE[0])
+            y = int(sy * camera.ZOOM_POSITION_SIZE[1])
+            text += f" cam {x},{y}"
+        self.position_label.set_text(text)
 
     def _setup_rotate(self):
         """
@@ -1705,6 +1724,7 @@ class Cam2WebSolution(InputWebSolution):
         if self._dragging and e.type in ("mousedown", "mousemove"):
             camera.set_zoom_position(fx, fy)
             self.draw_frame()
+            self.show_position()
 
     def on_zoom_mouse(self, e):
         """
