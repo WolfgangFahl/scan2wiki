@@ -7,6 +7,7 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 @author: wf
 """
 
+import asyncio
 import atexit
 import os
 import queue
@@ -26,7 +27,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from ngwidgets.input_webserver import InputWebserver, InputWebSolution
 from ngwidgets.task_runner import TaskRunner
 from ngwidgets.webserver import WebserverConfig
-from nicegui import Client, app, ui
+from nicegui import Client, app, run, ui
 
 from scan.version import Version
 
@@ -778,16 +779,16 @@ class Cam2WebServer(InputWebserver):
             return await self.page(client, Cam2WebSolution.control)
 
         @app.get("/still.jpg")
-        def still():
-            return self.still()
+        async def still():
+            return await self.still()
 
         @app.get("/last.jpg")
-        def last():
-            return self.last()
+        async def last():
+            return await self.last()
 
         @app.get("/stream.mjpg")
-        def stream():
-            return self.stream()
+        async def stream():
+            return await self.stream()
 
     def configure_run(self):
         """
@@ -846,13 +847,15 @@ class Cam2WebServer(InputWebserver):
         text = explain(ex) if explain else str(ex)
         return text
 
-    def still(self) -> Response:
+    async def still(self) -> Response:
         """
         take a picture and serve it as a JPEG - the camera owner
-        thread runs the capture between two preview frames
+        thread runs the capture between two preview frames; the
+        blocking wait is handed to a nicegui worker thread so that the
+        event loop stays free
         """
         try:
-            jpeg_bytes = self.camera.capture_still()
+            jpeg_bytes = await run.io_bound(self.camera.capture_still)
             self.last_error = None
             response = Response(content=jpeg_bytes, media_type="image/jpeg")
         except Exception as ex:
@@ -860,7 +863,7 @@ class Cam2WebServer(InputWebserver):
             response = HTMLResponse(content=self.last_error, status_code=503)
         return response
 
-    def last(self) -> Response:
+    async def last(self) -> Response:
         """
         serve the most recent picture from the cache
         """
@@ -870,7 +873,7 @@ class Cam2WebServer(InputWebserver):
             response = HTMLResponse(content="no picture taken yet", status_code=404)
         return response
 
-    def frames(self, generation: int):
+    async def frames(self, generation: int):
         """
         generator yielding multipart MJPEG frames from the live view -
         each frame is a command on the camera owner thread, so stills
@@ -883,7 +886,7 @@ class Cam2WebServer(InputWebserver):
         try:
             while generation == self.stream_generation:
                 try:
-                    frame = self.camera.preview_frame()
+                    frame = await run.io_bound(self.camera.preview_frame)
                 except Exception as ex:
                     # end the stream cleanly - the panel reports the state
                     self.last_error = self.explain_error(ex)
@@ -895,12 +898,12 @@ class Cam2WebServer(InputWebserver):
                     + b"\r\n"
                 )
                 if delay:
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
         finally:
             if generation == self.stream_generation:
-                self.camera.set_live_view(False)
+                await run.io_bound(self.camera.set_live_view, False)
 
-    def stream(self) -> Response:
+    async def stream(self) -> Response:
         """
         serve the live view as an MJPEG stream - a new stream ends
         the previous one so stale connections cannot pile up
