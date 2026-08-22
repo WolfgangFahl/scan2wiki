@@ -814,6 +814,12 @@ class GPhoto2Camera(Camera):
             position = self._cfg_node(root, "eoszoomposition")
             if position is not None:
                 sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
+                # the camera anchors eoszoomposition at the window
+                # top-left corner - measured 2026-08-22 by a 9 point
+                # sweep: window center = commanded + half a window
+                window = 1.0 / self.zoom_level
+                sx = min(max(sx - window / 2, 0.0), 1.0 - window)
+                sy = min(max(sy - window / 2, 0.0), 1.0 - window)
                 x = int(sx * self.ZOOM_POSITION_SIZE[0])
                 y = int(sy * self.ZOOM_POSITION_SIZE[1])
                 position.set_value(f"{x},{y}")
