@@ -188,6 +188,69 @@ class TestCam2Web(Basetest):
         self.assertIn("rate limit", str(context.exception))
         camera.shutdown()
 
+    def test_zoom_view(self):
+        """
+        test the issue 39 zoom view: the digital fallback crops the
+        magnifying frame out of the preview and scales it back up
+        """
+        import fitz
+
+        camera = MockCamera()
+        full_frame = camera.preview_frame()
+        self.assertEqual((768, 512), camera.frame_size)
+        camera.set_zoom(10)
+        camera.set_zoom_position(0.25, 0.25)
+        zoomed_frame = camera.preview_frame()
+        self.assertTrue(zoomed_frame.startswith(b"\xff\xd8"))
+        pix = fitz.Pixmap(zoomed_frame)
+        # the crop is scaled back up to the full frame pixel size
+        self.assertEqual(768, pix.width)
+        self.assertEqual(512, pix.height)
+        self.assertNotEqual(full_frame, zoomed_frame)
+        camera.shutdown()
+
+    def test_zoom_level_validation(self):
+        """
+        test that only the EOS Utility zoom levels are accepted
+        """
+        camera = MockCamera()
+        with self.assertRaises(ValueError):
+            camera.set_zoom(3)
+        camera.shutdown()
+
+    def test_zoom_position_mapping(self):
+        """
+        test that the magnifying frame is clamped to the frame
+        borders and that a click on a running zoom view is mapped
+        back into the full frame
+        """
+        camera = MockCamera()
+        # position the magnifying frame on the full view first
+        camera.set_zoom_position(0.0, 0.0)
+        camera.set_zoom(10)
+        # the frame is clamped to the border
+        x0, y0, width, height = camera.crop_fractions()
+        self.assertEqual(0.0, x0)
+        self.assertEqual(0.0, y0)
+        self.assertAlmostEqual(0.1, width)
+        self.assertAlmostEqual(0.1, height)
+        # a click on the center of the running zoom view keeps the crop
+        camera.set_zoom_position(0.5, 0.5)
+        self.assertAlmostEqual(0.05, camera.zoom_fx)
+        self.assertAlmostEqual(0.05, camera.zoom_fy)
+        self.assertEqual((0.0, 0.0), camera.crop_fractions()[:2])
+        camera.shutdown()
+
+    def test_zoom_position_units(self):
+        """
+        test the mapping of magnifying frame fractions to the
+        eoszoomposition coordinate space
+        """
+        camera = CountingCamera()
+        self.assertEqual((4096, 4096), camera.zoom_position(0.5, 0.5))
+        self.assertEqual((0, 0), camera.zoom_position(0.0, 0.0))
+        camera.shutdown()
+
     def test_config(self):
         """
         test the cam2web server configuration
