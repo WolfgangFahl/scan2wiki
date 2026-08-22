@@ -60,6 +60,9 @@ class Camera:
         self.autorotate = False
         # True while the camera itself performs the magnification
         self.camera_zoom = False
+        # True while a zoom level or position change still has to be
+        # written to the magnifying camera
+        self.zoom_dirty = False
         # (width, height) of the last full preview frame
         self.frame_size = None
         self.commands = queue.Queue()
@@ -169,7 +172,8 @@ class Camera:
 
     def set_zoom(self, level: int):
         """
-        set the zoom view magnification
+        set the zoom view magnification - while the camera magnifies
+        the new level is pushed to the camera with the next zoom frame
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
 
         Args:
@@ -178,10 +182,14 @@ class Camera:
         if level not in self.ZOOM_LEVELS:
             raise ValueError(f"zoom level {level} not in {self.ZOOM_LEVELS}")
         self.zoom_level = level
+        if self.camera_zoom:
+            self.zoom_dirty = True
 
     def set_zoom_position(self, fx: float, fy: float):
         """
-        position the magnifying frame center on the full frame
+        position the magnifying frame center on the full frame -
+        while the camera magnifies the new position is pushed to the
+        camera with the next zoom frame
 
         Args:
             fx (float): horizontal center as fraction of the full frame
@@ -189,6 +197,8 @@ class Camera:
         """
         self.zoom_fx = min(max(fx, 0.0), 1.0)
         self.zoom_fy = min(max(fy, 0.0), 1.0)
+        if self.camera_zoom:
+            self.zoom_dirty = True
 
     def crop_fractions(self) -> tuple:
         """
@@ -216,21 +226,25 @@ class Camera:
 
     def do_zoom_preview(self) -> bytes:
         """
-        the zoom view frame - while the camera magnifies itself the
-        preview already is the magnified area; otherwise the digital
-        crop serves only the small selection preview, never the
-        magnified main view
+        the zoom view frame - the camera itself magnifies via its
+        native zoom as in EOS Utility, so the preview already is the
+        framed area at native resolution; there is no digital zoom
+        see https://github.com/WolfgangFahl/scan2wiki/issues/39
         """
-        frame = self.do_full_preview()
-        if self.zoom_level > 1 and not self.camera_zoom:
-            frame = self.apply_zoom(frame)
+        if not self.camera_zoom:
+            raise RuntimeError(
+                "camera magnification not engaged - no digital zoom is served"
+            )
+        if self.zoom_dirty:
+            self.do_apply_camera_zoom()
+            self.zoom_dirty = False
+        frame = self.apply_rotation(self.do_preview_frame())
         return frame
 
     def start_camera_zoom(self) -> bool:
         """
-        engage the camera's own magnification for the magnified view -
-        the base camera has none, so the zoom view keeps the digital
-        crop
+        engage the camera's own magnification for the zoom view -
+        the base camera has none, so magnify is unavailable
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
 
         Returns:
@@ -238,6 +252,13 @@ class Camera:
         """
         started = False
         return started
+
+    def do_apply_camera_zoom(self):
+        """
+        push the current zoom level and magnifying frame position to
+        the magnifying camera - no operation by default
+        """
+        return None
 
     def stop_camera_zoom(self):
         """
@@ -308,30 +329,6 @@ class Camera:
             transposed_bytes = self.to_jpeg(transposed)
         return transposed_bytes
 
-    def apply_zoom(self, jpeg_bytes: bytes) -> bytes:
-        """
-        crop the magnifying frame out of the given full frame and
-        scale it back up to the full frame size
-
-        Args:
-            jpeg_bytes (bytes): the full preview frame
-
-        Returns:
-            bytes: the zoom view JPEG
-        """
-        image = Image.open(BytesIO(jpeg_bytes))
-        width, height = image.size
-        x0, y0, fw, fh = self.crop_fractions()
-        box = (
-            int(x0 * width),
-            int(y0 * height),
-            int((x0 + fw) * width),
-            int((y0 + fh) * height),
-        )
-        zoomed = image.crop(box).resize((width, height))
-        zoomed_bytes = self.to_jpeg(zoomed)
-        return zoomed_bytes
-
     def do_set_live_view(self, on: bool):
         """
         backend specific live view switch - no operation by default
@@ -382,10 +379,25 @@ class MockCamera(Camera):
 
     def do_preview_frame(self) -> bytes:
         self.frame_no += 1
-        return self.render(f"mock preview {self.frame_no}")
+        if self.camera_zoom:
+            text = (
+                f"mock zoom {self.zoom_level}x "
+                f"{self.zoom_fx:.2f},{self.zoom_fy:.2f} {self.frame_no}"
+            )
+        else:
+            text = f"mock preview {self.frame_no}"
+        return self.render(text)
 
     def do_capture_still(self) -> bytes:
         return self.render("mock still")
+
+    def start_camera_zoom(self) -> bool:
+        """
+        the mock stands in for an EOS camera whose native zoom serves
+        the framed area - engaging always succeeds
+        """
+        self.camera_zoom = True
+        return True
 
 
 class GPhoto2Camera(Camera):
@@ -777,6 +789,30 @@ class GPhoto2Camera(Camera):
         started = self.submit(self.do_start_camera_zoom)
         return started
 
+    def write_zoom_config(self, root) -> bool:
+        """
+        write the zoom level to eoszoom and the magnifying frame
+        position to eoszoomposition on the given config root
+
+        Args:
+            root: the gphoto2 config root
+
+        Returns:
+            bool: True if the camera supports eoszoom
+        """
+        node = self._cfg_node(root, "eoszoom")
+        supported = node is not None
+        if supported:
+            node.set_value(str(self.zoom_level))
+            position = self._cfg_node(root, "eoszoomposition")
+            if position is not None:
+                sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
+                x = int(sx * self.ZOOM_POSITION_SIZE[0])
+                y = int(sy * self.ZOOM_POSITION_SIZE[1])
+                position.set_value(f"{x},{y}")
+            self.camera.set_config(root)
+        return supported
+
     def do_start_camera_zoom(self) -> bool:
         """
         camera owner thread part of start_camera_zoom
@@ -785,22 +821,24 @@ class GPhoto2Camera(Camera):
         def op() -> bool:
             self.ensure_open()
             root = self.camera.get_config()
-            node = self._cfg_node(root, "eoszoom")
-            supported = node is not None
-            if supported:
-                node.set_value(str(self.zoom_level))
-                position = self._cfg_node(root, "eoszoomposition")
-                if position is not None:
-                    sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
-                    x = int(sx * self.ZOOM_POSITION_SIZE[0])
-                    y = int(sy * self.ZOOM_POSITION_SIZE[1])
-                    position.set_value(f"{x},{y}")
-                self.camera.set_config(root)
-            return supported
+            return self.write_zoom_config(root)
 
         started = self.with_retry(op)
         self.camera_zoom = started
         return started
+
+    def do_apply_camera_zoom(self):
+        """
+        push a pending zoom level or magnifying frame position change
+        to the camera - runs on the owner thread between zoom frames
+        """
+
+        def op():
+            self.ensure_open()
+            root = self.camera.get_config()
+            self.write_zoom_config(root)
+
+        self.with_retry(op)
 
     def stop_camera_zoom(self):
         """
@@ -948,6 +986,10 @@ class Cam2WebServer(InputWebserver):
         async def zoom():
             return await self.zoom()
 
+        @app.get("/full.jpg")
+        async def full():
+            return await self.full()
+
     def configure_run(self):
         """
         create the camera backend as configured via --camera
@@ -964,6 +1006,9 @@ class Cam2WebServer(InputWebserver):
         self.generations = {"stream": 0, "zoom": 0}
         self.active_streams = 0
         self.last_error = None
+        # frozen full frame the magnifying frame is dragged on while
+        # the camera streams the magnified area - see issue 39
+        self.last_full = None
         rotate = getattr(self.args, "rotate", "0")
         if rotate == "auto":
             self.camera.autorotate = True
@@ -1106,10 +1151,21 @@ class Cam2WebServer(InputWebserver):
 
     async def zoom(self) -> Response:
         """
-        serve the magnifying frame area as an MJPEG stream
+        serve the camera magnified area as an MJPEG stream
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
         """
         response = self.mjpeg_response("zoom")
+        return response
+
+    async def full(self) -> Response:
+        """
+        serve the frozen full frame the magnifying frame is dragged on
+        see https://github.com/WolfgangFahl/scan2wiki/issues/39
+        """
+        if self.last_full:
+            response = Response(content=self.last_full, media_type="image/jpeg")
+        else:
+            response = HTMLResponse(content="no full frame yet", status_code=404)
         return response
 
 
@@ -1421,6 +1477,9 @@ class Cam2WebSolution(InputWebSolution):
         off with it
         """
         self.streaming = False
+        camera = self.webserver.camera
+        if camera.camera_zoom:
+            self.task_runner.run_blocking(self.write_camera_zoom, False)
         self.magnify_switch.value = False
         self.image.set_source("")
         self.image.content = ""
@@ -1442,9 +1501,9 @@ class Cam2WebSolution(InputWebSolution):
 
     def set_magnify(self, on: bool):
         """
-        the magnify toggle - switching on enters selection mode at the
-        selected magnification and starts the live view, switching off
-        returns to normal mode
+        the magnify toggle - switching on enters selection mode with
+        the camera's native zoom engaged as in EOS Utility, switching
+        off releases the camera zoom and returns to normal mode
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
 
         Args:
@@ -1452,9 +1511,8 @@ class Cam2WebSolution(InputWebSolution):
         """
         camera = self.webserver.camera
         if on:
-            camera.set_zoom(int(self.level_toggle.value))
-            self.streaming = True
-            self.status.set_text("magnify")
+            self.status.set_text("engaging camera zoom ...")
+            self.task_runner.run_blocking(self.enter_select)
         else:
             camera.set_zoom(1)
             if camera.camera_zoom:
@@ -1463,33 +1521,60 @@ class Cam2WebSolution(InputWebSolution):
                 self.status.set_text("live view")
             else:
                 self.status.set_text("idle")
-        self.magnify.set_magnify(on)
-        self.apply_mode()
+            self.magnify.set_magnify(False)
+            self.apply_mode()
 
-    def enter_magnified(self):
+    def enter_select(self):
         """
-        blocking transition into the magnified view - the camera has
-        to take over the magnification, there is no digital fallback;
-        a camera that cannot magnify keeps the selection mode and
-        reports why
+        blocking transition into selection mode - a full frame is
+        frozen for dragging the magnifying frame, then the camera
+        takes over the magnification for the zoom view; there is no
+        digital fallback - a camera that cannot magnify keeps the
+        normal mode and reports why
         see https://github.com/WolfgangFahl/scan2wiki/issues/39
         """
-        camera = self.webserver.camera
+        webserver = self.webserver
+        camera = webserver.camera
         error = None
         try:
+            camera.set_zoom(int(self.level_toggle.value))
+            webserver.last_full = camera.preview_frame()
             started = camera.start_camera_zoom()
         except Exception as ex:
             started = False
             error = str(ex)
         with self.container:
             if started:
-                self.magnify.click_zoom()
+                self.streaming = True
+                self.magnify.set_magnify(True)
+                self.status.set_text("magnify")
                 self.apply_mode()
             else:
                 msg = f"camera magnification not available: {error or 'no eoszoom'}"
                 logger.error(msg)
                 ui.notify(msg, type="negative")
                 self.status.set_text(msg)
+                self.magnify_switch.value = False
+
+    def back_to_select(self):
+        """
+        blocking transition from the magnified view back to selection
+        mode - the frozen full frame is refreshed between releasing
+        and re-engaging the camera zoom
+        see https://github.com/WolfgangFahl/scan2wiki/issues/39
+        """
+        webserver = self.webserver
+        camera = webserver.camera
+        try:
+            camera.stop_camera_zoom()
+            webserver.last_full = camera.preview_frame()
+            camera.start_camera_zoom()
+        except Exception as ex:
+            logger.error(f"return to selection mode failed: {ex}")
+            self.notify(f"camera zoom failed: {ex}", "negative")
+        with self.container:
+            self.magnify.click_main()
+            self.apply_mode()
 
     def write_camera_zoom(self, on: bool):
         """
@@ -1519,7 +1604,8 @@ class Cam2WebSolution(InputWebSolution):
         """
         if self.magnify.mode != MagnifyState.NORMAL:
             self.webserver.camera.set_zoom(int(level))
-            self.draw_frame()
+            if self.magnify.mode == MagnifyState.SELECT:
+                self.draw_frame()
 
     def apply_mode(self):
         """
@@ -1530,7 +1616,9 @@ class Cam2WebSolution(InputWebSolution):
         self.level_toggle.set_visibility(mode != MagnifyState.NORMAL)
         self.zoom_image.set_visibility(mode == MagnifyState.SELECT)
         if mode == MagnifyState.SELECT:
-            self.image.set_source(self._bust("/stream.mjpg"))
+            # the camera streams the magnified area - the main view
+            # freezes on the last full frame for dragging the frame
+            self.image.set_source(self._bust("/full.jpg"))
             self.zoom_image.set_source(self._bust("/zoom.mjpg"))
             self.draw_frame()
         elif mode == MagnifyState.MAGNIFIED:
@@ -1584,9 +1672,7 @@ class Cam2WebSolution(InputWebSolution):
         mode = self.magnify.mode
         if mode == MagnifyState.MAGNIFIED:
             if e.type == "mousedown":
-                self.magnify.click_main()
-                self.task_runner.run_blocking(self.write_camera_zoom, False)
-                self.apply_mode()
+                self.task_runner.run_blocking(self.back_to_select)
         elif mode == MagnifyState.SELECT:
             self.drag_frame(e)
 
@@ -1621,7 +1707,10 @@ class Cam2WebSolution(InputWebSolution):
             e: the nicegui mouse event
         """
         if e.type == "mousedown" and self.magnify.mode == MagnifyState.SELECT:
-            self.task_runner.run_blocking(self.enter_magnified)
+            # the camera zoom is already engaged - the magnified
+            # stream just fills the main view
+            self.magnify.click_zoom()
+            self.apply_mode()
 
     def refresh_settings(self):
         """

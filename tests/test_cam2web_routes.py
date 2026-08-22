@@ -127,8 +127,10 @@ class TestCam2WebRoutes(Basetest):
             for _ in range(3):
                 latencies.append(self.fetch_latency("/"))
             still.join(timeout=10.0)
-            # the issue 39 zoom stream serves beside the full stream
+            # the issue 39 zoom stream serves beside the full stream -
+            # only with the camera's own magnification engaged
             self.ws.camera.set_zoom(10)
+            self.assertTrue(self.ws.camera.start_camera_zoom())
             zoom_chunk = self.read_chunk("/zoom.mjpg")
         finally:
             stop.set()

@@ -14,7 +14,7 @@ from io import BytesIO
 from ngwidgets.basetest import Basetest
 from PIL import Image
 
-from scan.cam2web import Cam2WebServer, GPhoto2Camera, MagnifyState, MockCamera
+from scan.cam2web import Cam2WebServer, Camera, GPhoto2Camera, MagnifyState, MockCamera
 
 
 class CountingCamera(GPhoto2Camera):
@@ -205,21 +205,39 @@ class TestCam2Web(Basetest):
 
     def test_zoom_view(self):
         """
-        test the issue 39 zoom view: the digital crop takes the
-        magnifying frame out of the preview and scales it back up
-        while the full preview stays unmagnified
+        test the issue 39 acceptance criterion: the zoom view is
+        served by the camera's own magnification at the selected
+        level and frame position - digital zoom does not exist and
+        an unengaged camera refuses to serve a zoom frame
         """
         camera = MockCamera()
-        full_frame = camera.preview_frame()
+        camera.preview_frame()
         self.assertEqual((768, 512), camera.frame_size)
+        # without the camera magnifying there is no zoom view
+        with self.assertRaises(RuntimeError):
+            camera.zoom_frame()
+        # engaging the camera zoom serves the framed area
         camera.set_zoom(10)
         camera.set_zoom_position(0.25, 0.25)
-        # the full preview is not affected by the zoom level
-        self.assertEqual((768, 512), self.jpeg_size(camera.preview_frame()))
-        zoomed_frame = camera.zoom_frame()
-        # the crop is scaled back up to the full frame pixel size
-        self.assertEqual((768, 512), self.jpeg_size(zoomed_frame))
-        self.assertNotEqual(full_frame, zoomed_frame)
+        self.assertTrue(camera.start_camera_zoom())
+        applied = []
+        camera.do_apply_camera_zoom = lambda: applied.append(
+            (camera.zoom_level, camera.zoom_fx, camera.zoom_fy)
+        )
+        frame_10x = camera.zoom_frame()
+        self.assertEqual((768, 512), self.jpeg_size(frame_10x))
+        # a level change is pushed to the camera with the next frame
+        camera.set_zoom(5)
+        frame_5x = camera.zoom_frame()
+        self.assertNotEqual(frame_10x, frame_5x)
+        # a position drag is pushed to the camera with the next frame
+        camera.set_zoom_position(0.75, 0.5)
+        camera.zoom_frame()
+        self.assertEqual([(5, 0.25, 0.25), (5, 0.75, 0.5)], applied)
+        # releasing the camera zoom ends the zoom view
+        camera.stop_camera_zoom()
+        with self.assertRaises(RuntimeError):
+            camera.zoom_frame()
         camera.shutdown()
 
     def test_zoom_level_validation(self):
@@ -326,13 +344,15 @@ class TestCam2Web(Basetest):
     def test_camera_zoom_required(self):
         """
         test that a camera without its own magnification refuses to
-        magnify - the magnified view is never served digitally
+        magnify - no zoom view is ever served digitally
         """
-        camera = MockCamera()
+        camera = Camera()
         camera.set_zoom(5)
         started = camera.start_camera_zoom()
         self.assertFalse(started)
         self.assertFalse(camera.camera_zoom)
+        with self.assertRaises(RuntimeError):
+            camera.zoom_frame()
         camera.shutdown()
 
     def test_config(self):
