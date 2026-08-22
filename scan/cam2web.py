@@ -1111,6 +1111,7 @@ class Cam2WebServer(InputWebserver):
                 except Exception as ex:
                     # end the stream cleanly - the panel reports the state
                     self.last_error = self.explain_error(ex)
+                    logger.error(f"{kind} stream ended: {self.last_error}")
                     break
                 if frame is None:
                     # run.io_bound yields None on cancellation or
