@@ -7,8 +7,10 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 @author: wf
 """
 
+import atexit
 import os
 import queue
+import signal
 import sys
 import threading
 import time
@@ -261,7 +263,32 @@ class GPhoto2Camera(Camera):
             self.camera = None
         self.os_workaround()
         self.shell.run("gphoto2 --reset", debug=False)
+        self.power_cycle()
         time.sleep(1.0)
+
+    def power_cycle(self):
+        """
+        power cycle the camera's USB port with uhubctl where the hub
+        supports per port power switching - this is a replug without
+        hands at the cable
+        """
+        r = self.shell.run("which uhubctl", debug=False)
+        if r.returncode != 0:
+            return
+        # find the hub and port the camera is connected to
+        r = self.shell.run("sudo -n uhubctl", debug=False)
+        hub = None
+        for line in (r.stdout or "").splitlines():
+            if line.startswith("Current status for hub"):
+                hub = line.split()[4]
+            if "04a9:" in line and hub:
+                port = line.split()[1].rstrip(":")
+                self.shell.run(
+                    f"sudo -n uhubctl -l {hub} -p {port} -a cycle --delay 3",
+                    debug=False,
+                )
+                time.sleep(4.0)
+                break
         self.viewfinder_on = False
 
     def check_transition_rate(self):
@@ -574,6 +601,31 @@ class Cam2WebServer(InputWebserver):
         self.fps = getattr(self.args, "fps", 10.0)
         self.stream_generation = 0
         self.last_error = None
+        # leaving the camera in live view wedges it - the next session
+        # then only gets I/O in progress until the cable is replugged
+        atexit.register(self.close_camera)
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, self.on_signal)
+        app.on_shutdown(self.close_camera)
+
+    def on_signal(self, signum, frame):
+        """
+        close the camera on a termination signal and exit
+        """
+        self.close_camera()
+        sys.exit(0)
+
+    def close_camera(self):
+        """
+        switch the live view off and close the camera session
+        """
+        camera = getattr(self, "camera", None)
+        if camera:
+            try:
+                camera.shutdown()
+            except Exception:
+                pass
+            self.camera = None
         self.last_still = None
 
     def explain_error(self, ex) -> str:
@@ -698,9 +750,12 @@ class Cam2WebSolution(InputWebSolution):
         """
 
         def setup_home():
+            self._settings = {}
             with ui.column().classes("w-full gap-3") as self.container:
                 with ui.row().classes("items-center gap-2"):
-                    ui.button("Shoot", icon="camera", on_click=self.shoot)
+                    self.shoot_button = ui.button(
+                        "Shoot", icon="camera", on_click=self.shoot
+                    )
                     ui.button(
                         "Live view", icon="videocam", on_click=self.live_view
                     )
@@ -728,7 +783,9 @@ class Cam2WebSolution(InputWebSolution):
             with ui.column().classes("w-full gap-3") as self.container:
                 self._setup_lcd()
                 with ui.row().classes("items-center gap-2"):
-                    ui.button("Shoot", icon="camera", on_click=self.shoot)
+                    self.shoot_button = ui.button(
+                        "Shoot", icon="camera", on_click=self.shoot
+                    )
                     ui.button(
                         "Live view", icon="videocam", on_click=self.live_view
                     )
@@ -808,13 +865,38 @@ class Cam2WebSolution(InputWebSolution):
     def _bust(self, path: str) -> str:
         return f"{path}?t={time.time()}"
 
+    def ensure_settings(self):
+        """
+        make sure the camera settings are known - the drive mode
+        decides how long the shutter waits
+        """
+        if not getattr(self, "_settings", None):
+            try:
+                self._settings = self.webserver.camera.read_settings()
+            except Exception:
+                self._settings = {}
+
+    def timer_seconds(self) -> int:
+        """
+        self timer delay of the current drive mode
+
+        Returns:
+            int: seconds the camera waits before the shutter fires
+        """
+        drivemode = self._value("drivemode") if self._settings else ""
+        seconds = 0
+        for token in drivemode.replace("sec", " ").split():
+            if token.isdigit():
+                seconds = int(token)
+        return seconds
+
     def shoot(self):
         """
         take a still through the camera owner thread and show it -
-        a camera problem is reported as a readable state, never as
-        a traceback
+        the button is grayed out while the camera is busy, with the
+        self timer of the drive mode counted down
         """
-        self.status.set_text("shooting ...")
+        self.shoot_button.disable()
         self.task_runner.run_blocking(self.do_shoot)
 
     def check_camera(self):
@@ -854,10 +936,20 @@ class Cam2WebSolution(InputWebSolution):
     def do_shoot(self):
         """
         blocking still capture - runs in a TaskRunner thread, the
-        picture is cached by the webserver and shown from /last.jpg
+        picture is cached by the webserver and shown from /last.jpg;
+        the self timer of the drive mode is counted down so the user
+        knows how long the shutter still waits
         """
         webserver = self.webserver
         try:
+            self.ensure_settings()
+            seconds = self.timer_seconds()
+            with self.container:
+                if seconds:
+                    self.status.set_text(f"self timer {seconds} s - wait ...")
+                else:
+                    self.status.set_text("shooting ...")
+            # the camera runs its self timer inside the capture
             webserver.last_still = webserver.camera.capture_still()
             webserver.last_error = None
             with self.container:
@@ -868,6 +960,9 @@ class Cam2WebSolution(InputWebSolution):
             with self.container:
                 self.status.set_text(msg)
                 ui.notify(msg, type="warning")
+        finally:
+            with self.container:
+                self.shoot_button.enable()
 
     def live_view(self):
         """
