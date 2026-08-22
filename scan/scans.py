@@ -6,8 +6,9 @@ Created on 2023-11-14
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List
 from pathlib import Path
+from typing import Any, Dict, List
+
 from ngwidgets.widgets import Link
 
 from scan.dms import Document
@@ -140,9 +141,8 @@ class Scans:
         # Add AI link for image files
         ai_link = ""
         _, extension = os.path.splitext(path)
-        if extension.lower() in ['.jpg', '.jpeg', '.png']:
+        if extension.lower() in [".jpg", ".jpeg", ".png"]:
             ai_link = Link.create(url=f"/ai-webcam/{path}", text="🤖")
-
 
         scan_file = {
             "#": index + 1,

@@ -44,9 +44,7 @@ def main(argv: list = None):
     """
     main call
     """
-    cmd = Cam2WebCmd(
-        config=Cam2WebServer.get_config(), webserver_cls=Cam2WebServer
-    )
+    cmd = Cam2WebCmd(config=Cam2WebServer.get_config(), webserver_cls=Cam2WebServer)
     exit_code = cmd.cmd_main(argv)
     return exit_code
 

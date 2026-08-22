@@ -11,12 +11,12 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+from ngwidgets.ai_tasks import AITasks
+from ngwidgets.image_cropper import ImageCropper
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
-from nicegui import background_tasks,ui
-from ngwidgets.image_cropper import ImageCropper
+from nicegui import background_tasks, ui
 
-from ngwidgets.ai_tasks import AITasks
 from scan.amazon import Amazon
 from scan.barcode import Barcode
 from scan.product import Products
@@ -27,7 +27,7 @@ class BaseWebcamForm:
     Base class for webcam functionality
     """
 
-    def __init__(self, solution, webcams: dict = None, path:str=None):
+    def __init__(self, solution, webcams: dict = None, path: str = None):
         """
         Initialize base webcam functionality
 
@@ -37,7 +37,7 @@ class BaseWebcamForm:
             path: Optional path to preload an existing image
         """
         self.solution = solution
-        self.scans=self.solution.webserver.scans
+        self.scans = self.solution.webserver.scans
         self.scandir = solution.webserver.scandir
         self.webcams = webcams or {}
 
@@ -45,7 +45,7 @@ class BaseWebcamForm:
         self.url = next(iter(self.webcams.values())) if self.webcams else ""
         self.shot_url = f"{self.url}"
         self.image_path = path
-        self.cropper=ImageCropper(solution=self.solution)
+        self.cropper = ImageCropper(solution=self.solution)
         self.setup_base_form()
         if self.image_path:
             background_tasks.create(self.update_image_preview())
@@ -65,8 +65,12 @@ class BaseWebcamForm:
         """
         try:
             with ui.row() as self.button_row:
-                self.scan_button = ui.button("Scan", icon="camera",on_click=self.run_scan)
-                self.delete_button = ui.button("Delete", icon="delete", on_click=self.delete)
+                self.scan_button = ui.button(
+                    "Scan", icon="camera", on_click=self.run_scan
+                )
+                self.delete_button = ui.button(
+                    "Delete", icon="delete", on_click=self.delete
+                )
             with ui.row() as self.markup_row:
                 pass
             with ui.row() as self.preview_row:
@@ -88,12 +92,12 @@ class BaseWebcamForm:
                     ui.input(
                         value=self.url, label="Webcam URL", placeholder="http(s)://..."
                     )
-                    .bind_value(self, "url")  # bound to the same attribute as the select
+                    .bind_value(
+                        self, "url"
+                    )  # bound to the same attribute as the select
                     .props("size=60")
                 )
-                self.cropper.setup_ui(
-                    container=self.preview_row,
-                    image_url="")
+                self.cropper.setup_ui(container=self.preview_row, image_url="")
                 self.image_link = ui.html().style(Link.blue)
         except Exception as ex:
             self.solution.handle_exception(ex)
@@ -124,8 +128,6 @@ class BaseWebcamForm:
 
         except Exception as ex:
             self.solution.handle_exception(ex)
-
-
 
     async def update_image_preview(self):
         self.update_preview(self.image_path)
@@ -160,7 +162,7 @@ class BaseWebcamForm:
 
                 with open(image_file_path, "wb") as image_file:
                     image_file.write(response.content)
-                self.cropper.file_path=image_file_path
+                self.cropper.file_path = image_file_path
                 msg = f"Saved webcam image to {image_file_path}"
             else:
                 msg = f"Failed to fetch the webcam image. Status code: {response.status_code}"
@@ -214,8 +216,12 @@ class ProductWebcamForm(BaseWebcamForm):
         Setup additional UI elements for product handling
         """
         with self.button_row:
-            self.barcode_button = ui.button("Barcode",icon="qr_code_scanner", on_click=self.scan_barcode)
-            self.lookup_button = ui.button("Lookup", icon="search", on_click=self.lookup_gtin)
+            self.barcode_button = ui.button(
+                "Barcode", icon="qr_code_scanner", on_click=self.scan_barcode
+            )
+            self.lookup_button = ui.button(
+                "Lookup", icon="search", on_click=self.lookup_gtin
+            )
             self.add_button = ui.button("add", icon="add", on_click=self.add_product)
 
         with self.preview_row:
@@ -315,8 +321,12 @@ class AIWebcamForm(BaseWebcamForm):
         """
         try:
             with self.button_row:
-                self.analyze_button = ui.button("Analyze",icon="analytics", on_click=self.analyze_image)
-                self.save_button = ui.button("Save", icon="save", on_click=self.save_analysis)
+                self.analyze_button = ui.button(
+                    "Analyze", icon="analytics", on_click=self.analyze_image
+                )
+                self.save_button = ui.button(
+                    "Save", icon="save", on_click=self.save_analysis
+                )
             with self.markup_row:
                 # Selector for AI tasks (prompts)
                 task_selection = {
@@ -382,7 +392,6 @@ class AIWebcamForm(BaseWebcamForm):
 
         except Exception as ex:
             self.solution.handle_exception(ex)
-
 
     async def perform_analysis(self):
         """

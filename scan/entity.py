@@ -344,16 +344,13 @@ class EntityManager(JsonCache):
             result = os.path.isfile(self.getCacheFile(config=self.config, mode=mode))
         elif mode is StoreMode.SPARQL:
             # @FIXME - make abstract
-            query = (
-                config.prefix
-                + """
+            query = config.prefix + """
 SELECT  ?source (COUNT(?source) AS ?sourcecount)
 WHERE {
    ?event cr:Event_source ?source.
 }
 GROUP by ?source
 """
-            )
             sourceCountList = self.sparql.queryAsListOfDicts(query)
             for sourceCount in sourceCountList:
                 source = sourceCount["source"]
@@ -465,8 +462,7 @@ You need to switch to a supported mode like StoreMode.SQL or StoreMode.JSON to b
             pass
         elif mode is StoreMode.SPARQL:
             # @FIXME make abstract
-            eventQuery = (
-                """
+            eventQuery = """
 PREFIX cr: <http://cr.bitplan.com/>
 SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate ?url ?source WHERE {
    OPTIONAL { ?event cr:Event_eventId ?eventId. }
@@ -481,9 +477,7 @@ SELECT ?eventId ?acronym ?series ?title ?year ?country ?city ?startDate ?endDate
    OPTIONAL { ?event cr:Event_url ?url. }
    ?event cr:Event_source ?source FILTER(?source='%s').
 }
-"""
-                % self.name
-            )
+""" % self.name
             listOfDicts = self.sparql.queryAsListOfDicts(eventQuery)
         elif mode is StoreMode.SQL:
             sqlQuery = "SELECT * FROM %s" % self.tableName

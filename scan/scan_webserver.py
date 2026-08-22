@@ -86,7 +86,7 @@ class ScanWebServer(InputWebserver):
 
         @app.get("/delete/{path:path}")
         def delete(path: str = None):
-            self.scans.delete(path,with_txt=True)
+            self.scans.delete(path, with_txt=True)
             return RedirectResponse("/")
 
         @app.route("/files")
@@ -294,7 +294,9 @@ class ScanSolution(InputWebSolution):
             )
             self.lod_grid = ListOfDictsGrid(config=grid_config)
             with self.lod_grid.button_row:
-                self.work_button = ui.button("work", icon="work", on_click=self.on_work_click)
+                self.work_button = ui.button(
+                    "work", icon="work", on_click=self.on_work_click
+                )
                 self.workoptions = {
                     "ai": False,
                     "ocr": False,

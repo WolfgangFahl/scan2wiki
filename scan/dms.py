@@ -915,17 +915,14 @@ class Archive:
         if hasattr(self, "wikiid") and self.wikiid is not None:
             smw = Wiki.getSMW(self.wikiid)
             for option in ["|format=count", ""]:
-                askQuery = (
-                    """{{#ask: [[Category:OCRDocument]]
+                askQuery = """{{#ask: [[Category:OCRDocument]]
 | mainlabel=page
 | ?Category
 | ?Modification date=lastModified
 | ?Creation date=created
 |limit=1000
 %s
-}}"""
-                    % option
-                )
+}}""" % option
                 print(askQuery)
                 result = smw.query(askQuery)
                 baseUrl = f"{smw.site.scheme}://{smw.site.host}{smw.site.path}index.php"
