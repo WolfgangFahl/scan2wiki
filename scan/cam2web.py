@@ -1009,6 +1009,56 @@ class Cam2WebServer(InputWebserver):
         async def full():
             return await self.full()
 
+        @app.get("/state.json")
+        def state():
+            return self.state()
+
+        @app.get("/zoom/set")
+        async def zoom_set(level: int = None, fx: float = None, fy: float = None):
+            return await self.zoom_set(level, fx, fy)
+
+    def state(self) -> dict:
+        """
+        camera and zoom state for calibration and monitoring -
+        queryability per https://github.com/WolfgangFahl/scan2wiki/issues/39
+        """
+        camera = self.camera
+        state = {
+            "rotation": camera.rotation,
+            "zoom_level": camera.zoom_level,
+            "camera_zoom": camera.camera_zoom,
+            "zoom_fx": camera.zoom_fx,
+            "zoom_fy": camera.zoom_fy,
+            "frame_size": camera.frame_size,
+            "last_error": self.last_error,
+        }
+        if hasattr(camera, "unrotate_fraction"):
+            sx, sy = camera.unrotate_fraction(camera.zoom_fx, camera.zoom_fy)
+            state["cam_x"] = int(sx * camera.ZOOM_POSITION_SIZE[0])
+            state["cam_y"] = int(sy * camera.ZOOM_POSITION_SIZE[1])
+        return state
+
+    async def zoom_set(self, level, fx, fy):
+        """
+        REST control of the zoom - level 1/5/10 engages or releases
+        the camera magnification, fx/fy position the magnifying frame
+        """
+        camera = self.camera
+
+        def op() -> dict:
+            if fx is not None and fy is not None:
+                camera.set_zoom_position(fx, fy)
+            if level is not None:
+                camera.set_zoom(level)
+                if level > 1:
+                    camera.start_camera_zoom()
+                elif camera.camera_zoom:
+                    camera.stop_camera_zoom()
+            return self.state()
+
+        result = await run.io_bound(op)
+        return result
+
     def configure_run(self):
         """
         create the camera backend as configured via --camera
