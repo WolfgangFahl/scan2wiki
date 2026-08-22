@@ -79,15 +79,33 @@ class TestCam2WebRoutes(Basetest):
             stop (threading.Event): set to end the consumption
             min_bytes (int): bytes to read per chunk
         """
+        self.stream_bytes = 0
         try:
             with urllib.request.urlopen(
                 f"{self.base_url}/stream.mjpg", timeout=8.0
             ) as r:
                 while not stop.is_set():
-                    if not r.read(min_bytes):
+                    chunk = r.read(min_bytes)
+                    if not chunk:
                         break
+                    self.stream_bytes += len(chunk)
         except Exception:
             pass
+
+    def read_chunk(self, path: str, size: int = 20000) -> bytes:
+        """
+        read one chunk from the given streaming path
+
+        Args:
+            path (str): the path to read from
+            size (int): bytes to read
+
+        Returns:
+            bytes: the chunk read
+        """
+        with urllib.request.urlopen(f"{self.base_url}{path}", timeout=8.0) as r:
+            chunk = r.read(size)
+        return chunk
 
     def test_home_page_responsive_while_streaming(self):
         """
@@ -109,9 +127,16 @@ class TestCam2WebRoutes(Basetest):
             for _ in range(3):
                 latencies.append(self.fetch_latency("/"))
             still.join(timeout=10.0)
+            # the issue 39 zoom stream serves beside the full stream
+            self.ws.camera.set_zoom(10)
+            zoom_chunk = self.read_chunk("/zoom.mjpg")
         finally:
             stop.set()
             streamer.join(timeout=10.0)
+        # frames actually flowed - an erroring camera ends the
+        # streams with empty bodies
+        self.assertGreater(self.stream_bytes, 0, "no frames on /stream.mjpg")
+        self.assertIn(b"image/jpeg", zoom_chunk, "no frames on /zoom.mjpg")
         worst = max(latencies)
         if self.debug:
             print(f"home page latency: baseline {baseline:.3f}s worst {worst:.3f}s")

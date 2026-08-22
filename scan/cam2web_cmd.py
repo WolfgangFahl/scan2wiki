@@ -32,6 +32,12 @@ class Cam2WebCmd(WebserverCmd):
             help="camera backend to use [default: %(default)s]",
         )
         parser.add_argument(
+            "--rotate",
+            default="0",
+            choices=["0", "90", "180", "270", "auto"],
+            help="clockwise display rotation in degrees or auto for EXIF based autorotate of stills [default: %(default)s]",
+        )
+        parser.add_argument(
             "--fps",
             type=float,
             default=10.0,

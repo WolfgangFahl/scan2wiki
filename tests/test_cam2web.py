@@ -9,10 +9,12 @@ and https://github.com/WolfgangFahl/scan2wiki/issues/35
 """
 
 import threading
+from io import BytesIO
 
 from ngwidgets.basetest import Basetest
+from PIL import Image
 
-from scan.cam2web import Cam2WebServer, GPhoto2Camera, MockCamera
+from scan.cam2web import Cam2WebServer, GPhoto2Camera, MagnifyState, MockCamera
 
 
 class CountingCamera(GPhoto2Camera):
@@ -188,24 +190,35 @@ class TestCam2Web(Basetest):
         self.assertIn("rate limit", str(context.exception))
         camera.shutdown()
 
+    def jpeg_size(self, jpeg_bytes: bytes) -> tuple:
+        """
+        get the pixel size of the given JPEG
+
+        Args:
+            jpeg_bytes (bytes): the image data
+
+        Returns:
+            tuple: (width, height)
+        """
+        size = Image.open(BytesIO(jpeg_bytes)).size
+        return size
+
     def test_zoom_view(self):
         """
-        test the issue 39 zoom view: the digital fallback crops the
+        test the issue 39 zoom view: the digital crop takes the
         magnifying frame out of the preview and scales it back up
+        while the full preview stays unmagnified
         """
-        import fitz
-
         camera = MockCamera()
         full_frame = camera.preview_frame()
         self.assertEqual((768, 512), camera.frame_size)
         camera.set_zoom(10)
         camera.set_zoom_position(0.25, 0.25)
-        zoomed_frame = camera.preview_frame()
-        self.assertTrue(zoomed_frame.startswith(b"\xff\xd8"))
-        pix = fitz.Pixmap(zoomed_frame)
+        # the full preview is not affected by the zoom level
+        self.assertEqual((768, 512), self.jpeg_size(camera.preview_frame()))
+        zoomed_frame = camera.zoom_frame()
         # the crop is scaled back up to the full frame pixel size
-        self.assertEqual(768, pix.width)
-        self.assertEqual(512, pix.height)
+        self.assertEqual((768, 512), self.jpeg_size(zoomed_frame))
         self.assertNotEqual(full_frame, zoomed_frame)
         camera.shutdown()
 
@@ -218,37 +231,108 @@ class TestCam2Web(Basetest):
             camera.set_zoom(3)
         camera.shutdown()
 
-    def test_zoom_position_mapping(self):
+    def test_zoom_position_clamping(self):
         """
-        test that the magnifying frame is clamped to the frame
-        borders and that a click on a running zoom view is mapped
-        back into the full frame
+        test that the magnifying frame is clamped to the frame borders
         """
         camera = MockCamera()
-        # position the magnifying frame on the full view first
-        camera.set_zoom_position(0.0, 0.0)
         camera.set_zoom(10)
-        # the frame is clamped to the border
+        camera.set_zoom_position(0.0, 0.0)
         x0, y0, width, height = camera.crop_fractions()
         self.assertEqual(0.0, x0)
         self.assertEqual(0.0, y0)
         self.assertAlmostEqual(0.1, width)
         self.assertAlmostEqual(0.1, height)
-        # a click on the center of the running zoom view keeps the crop
-        camera.set_zoom_position(0.5, 0.5)
-        self.assertAlmostEqual(0.05, camera.zoom_fx)
-        self.assertAlmostEqual(0.05, camera.zoom_fy)
-        self.assertEqual((0.0, 0.0), camera.crop_fractions()[:2])
+        camera.set_zoom_position(1.5, -0.5)
+        self.assertEqual(1.0, camera.zoom_fx)
+        self.assertEqual(0.0, camera.zoom_fy)
         camera.shutdown()
 
-    def test_zoom_position_units(self):
+    def test_unrotate_fraction(self):
         """
-        test the mapping of magnifying frame fractions to the
-        eoszoomposition coordinate space
+        test the mapping of rotated display fractions back to sensor
+        fractions for the eoszoomposition entry
         """
         camera = CountingCamera()
-        self.assertEqual((4096, 4096), camera.zoom_position(0.5, 0.5))
-        self.assertEqual((0, 0), camera.zoom_position(0.0, 0.0))
+        point = (0.25, 0.5)
+        expected = {
+            0: (0.25, 0.5),
+            90: (0.5, 0.75),
+            180: (0.75, 0.5),
+            270: (0.5, 0.25),
+        }
+        for rotation, sensor in expected.items():
+            camera.rotation = rotation
+            fx, fy = camera.unrotate_fraction(*point)
+            self.assertAlmostEqual(sensor[0], fx, msg=f"rotation {rotation}")
+            self.assertAlmostEqual(sensor[1], fy, msg=f"rotation {rotation}")
+        camera.shutdown()
+
+    def test_rotation(self):
+        """
+        test the issue 38 rotate feature: the display rotation is
+        applied to preview frames and stills and the two rotate
+        buttons step it in 90 degree increments
+        """
+        camera = MockCamera()
+        camera.rotate_by(90)
+        self.assertEqual(90, camera.rotation)
+        self.assertEqual((512, 768), self.jpeg_size(camera.preview_frame()))
+        self.assertEqual((512, 768), self.jpeg_size(camera.capture_still()))
+        camera.rotate_by(-90)
+        self.assertEqual(0, camera.rotation)
+        camera.rotate_by(-90)
+        self.assertEqual(270, camera.rotation)
+        camera.shutdown()
+
+    def test_autorotate(self):
+        """
+        test the issue 38 autorotate feature: a still carrying an EXIF
+        orientation tag is transposed accordingly
+        """
+
+        class ExifCamera(MockCamera):
+            def do_capture_still(self) -> bytes:
+                image = Image.new("RGB", (768, 512))
+                exif = image.getexif()
+                # orientation 6: rotate 90 degrees clockwise to view
+                exif[274] = 6
+                buffer = BytesIO()
+                image.save(buffer, "JPEG", exif=exif)
+                return buffer.getvalue()
+
+        camera = ExifCamera()
+        camera.autorotate = True
+        self.assertEqual((512, 768), self.jpeg_size(camera.capture_still()))
+        camera.autorotate = False
+        self.assertEqual((768, 512), self.jpeg_size(camera.capture_still()))
+        camera.shutdown()
+
+    def test_magnify_state(self):
+        """
+        test the issue 39 magnify mode transitions
+        """
+        state = MagnifyState()
+        self.assertEqual(MagnifyState.NORMAL, state.mode)
+        state.set_magnify(True)
+        self.assertEqual(MagnifyState.SELECT, state.mode)
+        state.click_zoom()
+        self.assertEqual(MagnifyState.MAGNIFIED, state.mode)
+        state.click_main()
+        self.assertEqual(MagnifyState.SELECT, state.mode)
+        state.set_magnify(False)
+        self.assertEqual(MagnifyState.NORMAL, state.mode)
+
+    def test_camera_zoom_fallback(self):
+        """
+        test that a camera without its own magnification keeps the
+        digital crop for the zoom view
+        """
+        camera = MockCamera()
+        camera.set_zoom(5)
+        started = camera.start_camera_zoom()
+        self.assertFalse(started)
+        self.assertFalse(camera.camera_zoom)
         camera.shutdown()
 
     def test_config(self):

@@ -56,7 +56,10 @@ dependencies = [
 	"pyzbar>=0.1.9",
 	# python interface to libgphoto2
 	# https://pypi.org/project/gphoto2/
-	"gphoto2>=2.5.0"
+	"gphoto2>=2.5.0",
+	# image rotation, EXIF transpose and zoom crop for cam2web
+	# https://pypi.org/project/pillow/
+	"pillow>=10.0.0"
 ]
 
 requires-python = ">=3.10"
