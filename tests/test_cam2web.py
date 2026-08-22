@@ -323,10 +323,10 @@ class TestCam2Web(Basetest):
         state.set_magnify(False)
         self.assertEqual(MagnifyState.NORMAL, state.mode)
 
-    def test_camera_zoom_fallback(self):
+    def test_camera_zoom_required(self):
         """
-        test that a camera without its own magnification keeps the
-        digital crop for the zoom view
+        test that a camera without its own magnification refuses to
+        magnify - the magnified view is never served digitally
         """
         camera = MockCamera()
         camera.set_zoom(5)

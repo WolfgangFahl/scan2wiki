@@ -9,6 +9,7 @@ see https://github.com/WolfgangFahl/scan2wiki/issues/33
 
 import asyncio
 import atexit
+import logging
 import os
 import queue
 import signal
@@ -32,6 +33,8 @@ from nicegui import Client, app, run, ui
 from PIL import Image, ImageOps
 
 from scan.version import Version
+
+logger = logging.getLogger(__name__)
 
 
 class Camera:
@@ -213,9 +216,10 @@ class Camera:
 
     def do_zoom_preview(self) -> bytes:
         """
-        the magnifying frame area of the rotated preview enlarged to
-        the full frame size - where the camera magnifies itself the
-        preview already is the magnified area
+        the zoom view frame - while the camera magnifies itself the
+        preview already is the magnified area; otherwise the digital
+        crop serves only the small selection preview, never the
+        magnified main view
         """
         frame = self.do_full_preview()
         if self.zoom_level > 1 and not self.camera_zoom:
@@ -1462,11 +1466,35 @@ class Cam2WebSolution(InputWebSolution):
         self.magnify.set_magnify(on)
         self.apply_mode()
 
+    def enter_magnified(self):
+        """
+        blocking transition into the magnified view - the camera has
+        to take over the magnification, there is no digital fallback;
+        a camera that cannot magnify keeps the selection mode and
+        reports why
+        see https://github.com/WolfgangFahl/scan2wiki/issues/39
+        """
+        camera = self.webserver.camera
+        error = None
+        try:
+            started = camera.start_camera_zoom()
+        except Exception as ex:
+            started = False
+            error = str(ex)
+        with self.container:
+            if started:
+                self.magnify.click_zoom()
+                self.apply_mode()
+            else:
+                msg = f"camera magnification not available: {error or 'no eoszoom'}"
+                logger.error(msg)
+                ui.notify(msg, type="negative")
+                self.status.set_text(msg)
+
     def write_camera_zoom(self, on: bool):
         """
         blocking camera magnification switch - runs in a TaskRunner
-        thread; without camera support the zoom view keeps the
-        digital crop
+        thread
 
         Args:
             on (bool): True to engage the camera magnification
@@ -1478,6 +1506,7 @@ class Cam2WebSolution(InputWebSolution):
             else:
                 camera.stop_camera_zoom()
         except Exception as ex:
+            logger.error(f"camera zoom switch failed: {ex}")
             self.notify(f"camera zoom failed: {ex}", "negative")
 
     def select_zoom(self, level: int):
@@ -1592,9 +1621,7 @@ class Cam2WebSolution(InputWebSolution):
             e: the nicegui mouse event
         """
         if e.type == "mousedown" and self.magnify.mode == MagnifyState.SELECT:
-            self.magnify.click_zoom()
-            self.task_runner.run_blocking(self.write_camera_zoom, True)
-            self.apply_mode()
+            self.task_runner.run_blocking(self.enter_magnified)
 
     def refresh_settings(self):
         """
