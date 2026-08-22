@@ -805,13 +805,17 @@ class GPhoto2Camera(Camera):
         node = self._cfg_node(root, "eoszoom")
         supported = node is not None
         if supported:
-            node.set_value(str(self.zoom_level))
+            # the camera acts on the position only when the eoszoom
+            # write follows it - position first in its own call, then
+            # the zoom write as the trigger
             position = self._cfg_node(root, "eoszoomposition")
             if position is not None:
                 sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
                 x = int(sx * self.ZOOM_POSITION_SIZE[0])
                 y = int(sy * self.ZOOM_POSITION_SIZE[1])
                 position.set_value(f"{x},{y}")
+                self.camera.set_config(root)
+            node.set_value(str(self.zoom_level))
             self.camera.set_config(root)
         return supported
 
