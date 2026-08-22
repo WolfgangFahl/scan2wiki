@@ -805,19 +805,30 @@ class GPhoto2Camera(Camera):
         node = self._cfg_node(root, "eoszoom")
         supported = node is not None
         if supported:
-            # the camera acts on the position only when the eoszoom
-            # write follows it - position first in its own call, then
-            # the zoom write as the trigger
+            # the 1000D ignores a position written while its zoom is
+            # engaged - disengage, position, re-engage; each write
+            # settles 50ms before set_config per the pyDSLR pattern
+            if str(node.get_value()) not in ("", "0", "1"):
+                node.set_value("1")
+                self.settle_config(root)
             position = self._cfg_node(root, "eoszoomposition")
             if position is not None:
                 sx, sy = self.unrotate_fraction(self.zoom_fx, self.zoom_fy)
                 x = int(sx * self.ZOOM_POSITION_SIZE[0])
                 y = int(sy * self.ZOOM_POSITION_SIZE[1])
                 position.set_value(f"{x},{y}")
-                self.camera.set_config(root)
+                self.settle_config(root)
             node.set_value(str(self.zoom_level))
-            self.camera.set_config(root)
+            self.settle_config(root)
         return supported
+
+    def settle_config(self, root):
+        """
+        write the given config to the camera after a short settle -
+        pyDSLR sleeps before gp_camera_set_config to avoid I/O errors
+        """
+        time.sleep(0.05)
+        self.camera.set_config(root)
 
     def do_start_camera_zoom(self) -> bool:
         """
