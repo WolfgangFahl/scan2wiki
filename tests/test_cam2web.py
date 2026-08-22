@@ -240,6 +240,38 @@ class TestCam2Web(Basetest):
             camera.zoom_frame()
         camera.shutdown()
 
+    def test_none_frame_ends_stream(self):
+        """
+        issue 40: run.io_bound yields None on cancellation or
+        shutdown - the frames generator ends the stream cleanly
+        instead of crashing on len(None)
+        """
+        import asyncio
+        from types import SimpleNamespace
+
+        # a stub carrying the frames() state - constructing a real
+        # Cam2WebServer would register duplicate routes on the
+        # nicegui app and hijack them for later tests
+        camera = MockCamera()
+        camera.preview_frame = lambda: None
+        stub = SimpleNamespace(
+            camera=camera,
+            fps=20.0,
+            generations={"stream": 1, "zoom": 1},
+            active_streams=0,
+            last_error=None,
+        )
+
+        async def collect():
+            chunks = []
+            async for chunk in Cam2WebServer.frames(stub, "stream", 1):
+                chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(collect())
+        self.assertEqual([], chunks)
+        camera.shutdown()
+
     def test_zoom_level_validation(self):
         """
         test that only the EOS Utility zoom levels are accepted

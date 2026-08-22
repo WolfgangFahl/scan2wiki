@@ -951,7 +951,9 @@ class Cam2WebServer(InputWebserver):
             version=Cam2WebVersion(),
             default_port=8088,
             short_name="cam2web",
-            timeout=10.0,
+            # first kiosk page load on a Pi exceeds 10s
+            # see https://github.com/WolfgangFahl/scan2wiki/issues/37
+            timeout=30.0,
         )
         server_config = WebserverConfig.get(config)
         server_config.solution_class = Cam2WebSolution
@@ -1109,6 +1111,11 @@ class Cam2WebServer(InputWebserver):
                 except Exception as ex:
                     # end the stream cleanly - the panel reports the state
                     self.last_error = self.explain_error(ex)
+                    break
+                if frame is None:
+                    # run.io_bound yields None on cancellation or
+                    # shutdown - end the stream, never serve it
+                    # see https://github.com/WolfgangFahl/scan2wiki/issues/40
                     break
                 yield (
                     b"--frame\r\nContent-Type: image/jpeg\r\n"
