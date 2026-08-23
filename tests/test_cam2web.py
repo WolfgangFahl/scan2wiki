@@ -301,33 +301,48 @@ class TestCam2Web(Basetest):
 
     def test_calibrated_magnify(self):
         """
-        test the issue 41 calibrated magnify: the position command is
-        the measured Dreisatz, 10x is a digital enlargement of the
-        native 5x window
+        test the issue 41 calibrated magnify: the position command
+        follows the measured per axis linear response, 10x is a
+        digital enlargement of the native 5x window and the drawn
+        frame reflects the clamped position the camera actually
+        takes
         """
         camera = CountingCamera()
-        camera.calibration = CameraCalibrations.get_instance().cameras[
-            "Canon EOS 1000D"
-        ]
+        calibration = CameraCalibrations.get_instance().cameras["Canon EOS 1000D"]
+        camera.calibration = calibration
+        geometry = calibration.geometry
         camera.set_zoom(5)
-        camera.set_zoom_position(0.5768, 0.5898)
+        center = (0.5, 0.4)
+        camera.set_zoom_position(*center)
         window = camera.magnify_window()
-        # native window fractions from the calibration
-        self.assertAlmostEqual(768 / 3888, window.width)
-        self.assertAlmostEqual(792 / 2592, window.height)
-        # command = desired center - measured offset
+        # native window fractions come from the calibration
+        self.assertAlmostEqual(geometry.window_width, window.width)
+        self.assertAlmostEqual(geometry.window_height, window.height)
+        # the command positions the native window top-left per the
+        # measured axis response
         x, y = camera.commanded_pixels()
-        self.assertEqual(int(0.5768 * 3888) - 410, x)
-        self.assertEqual(int(0.5898 * 2592) - 143, y)
-        # 10x halves the window, the command stays center based
+        expected = geometry.to_command(
+            center[0] - geometry.window_width / 2,
+            center[1] - geometry.window_height / 2,
+        )
+        self.assertEqual(expected, (x, y))
+        # 10x halves the drawn window, the native window and with it
+        # the command stay the same
         camera.set_zoom(10)
         self.assertAlmostEqual(2.0, camera.digital_factor())
         window = camera.magnify_window()
-        self.assertAlmostEqual(768 / 3888 / 2, window.width)
+        self.assertAlmostEqual(geometry.window_width / 2, window.width)
         self.assertEqual((x, y), camera.commanded_pixels())
-        # command clamped to the native window range
-        camera.set_zoom_position(0.0, 0.0)
-        self.assertEqual((0, 0), camera.commanded_pixels())
+        # a wish outside the reachable band clamps to the border and
+        # the drawn frame shows the clamped position, not the wish
+        camera.set_zoom(5)
+        camera.set_zoom_position(0.0, 1.0)
+        cx, cy = camera.commanded_pixels()
+        self.assertEqual(round(geometry.x_axis.offset), cx)
+        self.assertEqual(geometry.y_axis.cmd_max, cy)
+        x0, y0, _, _ = camera.display_box()
+        self.assertAlmostEqual(0.0, x0)
+        self.assertAlmostEqual(geometry.y_axis.max_fraction, y0)
         camera.shutdown()
 
     def test_rotation_keeps_sensor_window(self):

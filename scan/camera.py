@@ -30,7 +30,7 @@ from basemkit.shell import Shell
 from basemkit.yamlable import lod_storable
 from PIL import Image, ImageOps
 
-from scan.geometry import Calibration, Grid, Rotation, Window
+from scan.geometry import Axis, Calibration, Grid, Rotation, Window
 
 logger = logging.getLogger(__name__)
 
@@ -38,29 +38,39 @@ logger = logging.getLogger(__name__)
 @lod_storable
 class CameraCalibration:
     """
-    measured per camera model magnify constants - see
+    measured per camera model magnify constants - all values come
+    from a ruler scene calibration sweep on the live camera, never
+    from data sheets; see
     https://github.com/WolfgangFahl/scan2wiki/issues/41
     """
 
     model: str = ""
-    # coordinate space of the camera's zoom position entry
-    zoom_position_size: List[int] = None
-    # native pixel size of the camera's zoom window
-    zoom_window_size: List[int] = None
-    # measured center offset: command = desired center - offset
-    zoom_offset: List[int] = None
     # the level the camera magnifies natively; higher levels are
     # served as digital enlargement of the native window as in
     # EOS Utility
     native_zoom_level: int = 5
+    # pixel size of the served zoom frame
+    zoom_raster: List[int] = None
+    # native window size as fractions of the full view
+    window_fraction: List[float] = None
+    # per axis eoszoomposition response as [scale, offset, cmd_max]:
+    # command = scale * top_left_fraction + offset, honored up to
+    # cmd_max - see geometry.Axis
+    x_axis: List[float] = None
+    y_axis: List[float] = None
 
     @property
-    def offset(self) -> Calibration:
+    def geometry(self) -> Calibration:
         """
-        the measured offset as a geometry Calibration
+        the measured constants as a geometry Calibration
         """
-        dx, dy = self.zoom_offset or (0, 0)
-        calibration = Calibration(dx=dx, dy=dy)
+        width, height = self.window_fraction
+        calibration = Calibration(
+            x_axis=Axis(*self.x_axis),
+            y_axis=Axis(*self.y_axis),
+            window_width=width,
+            window_height=height,
+        )
         return calibration
 
 
@@ -280,44 +290,78 @@ class Camera:
     def magnify_window(self) -> Window:
         """
         the magnifying frame on the standard grid with its size
-        refreshed - the calibrated native window over the position
-        space, shrunk by the digital factor; the 1/level model is the
-        fallback for uncalibrated cameras
+        refreshed - the measured native window fraction, shrunk by
+        the digital factor; the 1/level model is the fallback for
+        uncalibrated cameras
 
         Returns:
             Window: the magnifying frame in sensor fractions
         """
         if self.calibration:
             factor = self.digital_factor()
-            raster = self.calibration.zoom_window_size
-            fullsize = self.calibration.zoom_position_size
-            wx = raster[0] / fullsize[0] / factor
-            wy = raster[1] / fullsize[1] / factor
+            width, height = self.calibration.window_fraction
+            wx = width / factor
+            wy = height / factor
         else:
             wx = 1.0 / self.zoom_level
             wy = 1.0 / self.zoom_level
         self.window.resize(wx, wy)
         return self.window
 
+    def native_top_left(self) -> Tuple[float, float]:
+        """
+        the desired top-left of the camera's native window - at a
+        digital level the small drawn window sits centered in the
+        native window, so the native window is positioned to share
+        its center
+
+        Returns:
+            Tuple[float, float]: (x0, y0) fractions
+        """
+        window = self.magnify_window()
+        geometry = self.calibration.geometry
+        x0 = window.cx - geometry.window_width / 2
+        y0 = window.cy - geometry.window_height / 2
+        return x0, y0
+
     def display_box(self) -> Tuple[float, float, float, float]:
         """
-        the magnifying frame as a display box for drawing
+        the magnifying frame as a display box for drawing - for a
+        calibrated camera the box shows where the window actually is
+        after the camera's clamping, not where the user wished it,
+        so frame and zoom content stay in sync at the borders
+        see https://github.com/WolfgangFahl/scan2wiki/issues/41
 
         Returns:
             Tuple[float, float, float, float]: (x0, y0, width, height)
                 display fractions
         """
         window = self.magnify_window()
-        box = self.view.box_to_display(*window.box())
-        return box
+        if self.calibration:
+            geometry = self.calibration.geometry
+            command = self.commanded_pixels()
+            nx0, ny0 = geometry.achieved(*command)
+            # drawn window shares the achieved native window center
+            cx = nx0 + geometry.window_width / 2
+            cy = ny0 + geometry.window_height / 2
+            box = (
+                cx - window.width / 2,
+                cy - window.height / 2,
+                window.width,
+                window.height,
+            )
+        else:
+            box = window.box()
+        display = self.view.box_to_display(*box)
+        return display
 
     def commanded_pixels(self) -> Optional[Tuple[int, int]]:
         """
         the zoom position value actually sent to the camera - for a
-        calibrated model the measured Dreisatz of issue 41: command =
-        desired window center - measured offset, clamped to the
-        native window range; the uncalibrated fallback commands the
-        window top-left corner
+        calibrated model the measured per axis linear response of
+        issue 41 applied to the desired native window top-left; the
+        uncalibrated fallback commands the window top-left corner
+        on the raw position grid
 
         Returns:
             Optional[Tuple[int, int]]: (x, y) position value or None
@@ -325,15 +369,8 @@ class Camera:
         """
         pixels = None
         if self.calibration:
-            window = self.magnify_window()
-            fullsize = self.calibration.zoom_position_size
-            raster = self.calibration.zoom_window_size
-            grid = Grid(*fullsize)
-            cx, cy = grid.to_pixels(window.cx, window.cy)
-            x, y = self.calibration.offset.to_command(cx, cy)
-            x = min(max(x, 0), fullsize[0] - raster[0])
-            y = min(max(y, 0), fullsize[1] - raster[1])
-            pixels = (x, y)
+            x0, y0 = self.native_top_left()
+            pixels = self.calibration.geometry.to_command(x0, y0)
         elif self.ZOOM_POSITION_SIZE:
             window = self.magnify_window()
             grid = Grid(*self.ZOOM_POSITION_SIZE)
@@ -618,6 +655,9 @@ class GPhoto2Camera(Camera):
         self.camera = None
         self.viewfinder_on = False
         self.transitions = []  # timestamps of viewfinder transitions
+        # the eoszoom level last written - the camera's own readback
+        # always reports 0, so the level written is the only truth
+        self.applied_level = 1
 
     shell = Shell()
     daemons = {
@@ -972,17 +1012,21 @@ class GPhoto2Camera(Camera):
         """
         self.set_viewfinder(on)
 
-    def write_zoom_config(self, root) -> bool:
+    def write_zoom_config(self) -> bool:
         """
-        write the zoom level to eoszoom and the magnifying frame
-        position to eoszoomposition on the given config root
-
-        Args:
-            root: the gphoto2 config root
+        engage the camera magnification and position the magnifying
+        frame - the camera honors eoszoomposition only while it
+        magnifies (measured on the ruler scene 2026-08-23, issue
+        41), so the level is written first and the position second,
+        each on a fresh config root with the 50ms settle of the
+        pyDSLR pattern. A position write while released or a level
+        rewrite at the running level are skipped: the first is
+        dropped by the camera, the second recenters the window
 
         Returns:
             bool: True if the camera supports eoszoom
         """
+        root = self.camera.get_config()
         node = self._cfg_node(root, "eoszoom")
         supported = node is not None
         if supported:
@@ -991,24 +1035,20 @@ class GPhoto2Camera(Camera):
             native = self.zoom_level
             if self.calibration:
                 native = min(self.zoom_level, self.calibration.native_zoom_level)
-            # position writes behave differently before the first
-            # engagement than in the running disengage - position -
-            # re-engage cycle (measured 2026-08-23, issue 41) - so a
-            # cold camera is engaged once first, making the measured
-            # cycle the only regime; each write settles 50ms before
-            # set_config per the pyDSLR pattern
-            if str(node.get_value()) in ("", "0", "1"):
+            if self.applied_level != native:
                 node.set_value(str(native))
                 self.settle_config(root)
-            node.set_value("1")
-            self.settle_config(root)
-            position = self._cfg_node(root, "eoszoomposition")
+                self.applied_level = native
+            position_root = self.camera.get_config()
+            position = self._cfg_node(position_root, "eoszoomposition")
             if position is not None:
                 x, y = self.commanded_pixels()
                 position.set_value(f"{x},{y}")
-                self.settle_config(root)
-            node.set_value(str(native))
-            self.settle_config(root)
+                # the widget always reads back 0,0 - without the
+                # forced changed flag a commanded 0,0 is silently
+                # dropped as unchanged
+                position.set_changed(True)
+                self.settle_config(position_root)
         return supported
 
     def settle_config(self, root):
@@ -1031,8 +1071,7 @@ class GPhoto2Camera(Camera):
 
         def op() -> bool:
             self.ensure_open()
-            root = self.camera.get_config()
-            return self.write_zoom_config(root)
+            return self.write_zoom_config()
 
         started = self.with_retry(op)
         self.camera_zoom = started
@@ -1046,8 +1085,7 @@ class GPhoto2Camera(Camera):
 
         def op():
             self.ensure_open()
-            root = self.camera.get_config()
-            self.write_zoom_config(root)
+            self.write_zoom_config()
 
         self.with_retry(op)
 
@@ -1066,6 +1104,7 @@ class GPhoto2Camera(Camera):
                 # release is dropped by the camera and the live view
                 # stays magnified
                 self.settle_config(root)
+                self.applied_level = 1
 
         self.with_retry(op)
         self.camera_zoom = False

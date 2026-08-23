@@ -1,14 +1,22 @@
 # measured per camera model magnify constants
 # see https://github.com/WolfgangFahl/scan2wiki/issues/41
-# zoom_position_size: coordinate space of eoszoomposition
-# zoom_window_size: native pixel size of the camera's zoom window
-# zoom_offset: measured center offset - command = desired center - offset
-# native_zoom_level: the level the camera magnifies natively; higher
-#   levels are served as digital enlargement as in EOS Utility
+#
+# all values measured on the live camera against a 30cm ruler scene
+# by template matching zoom frames onto the full view (2026-08-23):
+# - native_zoom_level: the level the camera magnifies natively;
+#   higher levels are digital enlargement as in EOS Utility
+# - zoom_raster: pixel size of the served zoom frame
+# - window_fraction: native window size as fractions of the full view
+# - x_axis/y_axis: eoszoomposition response [scale, offset, cmd_max]
+#   command = scale * window_top_left_fraction + offset
+#   honored only in [offset, cmd_max] - beyond cmd_max the window
+#   stops, on the y axis already at top fraction 0.57 so the bottom
+#   of the view is not reachable by the camera
 cameras:
   Canon EOS 1000D:
     model: Canon EOS 1000D
-    zoom_position_size: [3888, 2592]
-    zoom_window_size: [768, 792]
-    zoom_offset: [410, 143]
     native_zoom_level: 5
+    zoom_raster: [768, 792]
+    window_fraction: [0.200, 0.309]
+    x_axis: [3717, 80, 3052]
+    y_axis: [2548, 213, 1656]

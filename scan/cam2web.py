@@ -188,6 +188,12 @@ class Cam2WebServer(InputWebserver):
         pixels = camera.commanded_pixels()
         if pixels:
             state["cam_x"], state["cam_y"] = pixels
+            if camera.calibration:
+                # where the camera actually put the window after its
+                # clamping - lets a calibration client verify the
+                # command round trip, see issue 41
+                x0, y0 = camera.calibration.geometry.achieved(*pixels)
+                state["achieved"] = {"x0": x0, "y0": y0}
         return state
 
     async def zoom_set(self, level, fx, fy):

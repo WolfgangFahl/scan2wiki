@@ -215,29 +215,108 @@ class Window:
 
 
 @dataclass
-class Calibration:
+class Axis:
     """
-    measured linear map between a desired window center and the
-    camera's position value - slope one, constant offset per axis;
-    the Dreisatz of issue 41: command = center - offset
+    measured linear response of one eoszoomposition axis - maps a
+    window top-left fraction on the standard grid to the camera's
+    command value via command = scale * fraction + offset and back.
+    The camera only honors commands in [offset, cmd_max]; outside
+    that band the window stops at the border, so to_command clamps
+    and to_fraction reports the position the camera actually takes.
+    All three values are measured against a ruler scene, never
+    derived from data sheets - see issue 41
     """
 
-    dx: int = 0
-    dy: int = 0
+    scale: float = 1.0
+    offset: float = 0.0
+    cmd_max: int = 0
 
-    def to_command(self, cx: int, cy: int) -> Tuple[int, int]:
+    def to_command(self, fraction: float) -> int:
         """
-        the position value that centers the window at the given point
+        the command value that puts the window top-left at the given
+        fraction, clamped to the camera's honored band
 
         Args:
-            cx (int): desired horizontal window center in pixels
-            cy (int): desired vertical window center in pixels
+            fraction (float): desired window top-left fraction
 
         Returns:
-            Tuple[int, int]: (x, y) position value to command
+            int: the clamped command value
         """
-        command = (cx - self.dx, cy - self.dy)
+        command = round(self.scale * fraction + self.offset)
+        command = min(max(command, round(self.offset)), self.cmd_max)
         return command
+
+    def to_fraction(self, command: int) -> float:
+        """
+        the window top-left fraction the camera takes for the given
+        command - the inverse of to_command including the clamping,
+        so a caller can draw the frame where the window really is
+
+        Args:
+            command (int): the command value
+
+        Returns:
+            float: the achieved window top-left fraction
+        """
+        clamped = min(max(command, round(self.offset)), self.cmd_max)
+        fraction = (clamped - self.offset) / self.scale
+        return fraction
+
+    @property
+    def max_fraction(self) -> float:
+        """
+        the largest window top-left fraction the camera can reach
+        """
+        fraction = self.to_fraction(self.cmd_max)
+        return fraction
+
+
+@dataclass
+class Calibration:
+    """
+    measured mapping between the magnify window on the standard grid
+    and the camera's zoom position command - one Axis per direction
+    plus the native window size as fractions of the full view; see
+    issue 41
+    """
+
+    x_axis: Axis = None
+    y_axis: Axis = None
+    window_width: float = 0.2
+    window_height: float = 0.3
+
+    def to_command(self, x0: float, y0: float) -> Tuple[int, int]:
+        """
+        the position command for the given desired window top-left
+
+        Args:
+            x0 (float): desired top-left horizontal fraction
+            y0 (float): desired top-left vertical fraction
+
+        Returns:
+            Tuple[int, int]: (x, y) command value
+        """
+        command = (self.x_axis.to_command(x0), self.y_axis.to_command(y0))
+        return command
+
+    def achieved(self, command_x: int, command_y: int) -> Tuple[float, float]:
+        """
+        the window top-left the camera actually takes for the given
+        command - drawing the frame from this instead of the wish
+        keeps frame and zoom content in sync even at the borders
+
+        Args:
+            command_x (int): horizontal command value
+            command_y (int): vertical command value
+
+        Returns:
+            Tuple[float, float]: (x0, y0) achieved top-left fractions
+        """
+        fractions = (
+            self.x_axis.to_fraction(command_x),
+            self.y_axis.to_fraction(command_y),
+        )
+        return fractions
 
 
 @dataclass
