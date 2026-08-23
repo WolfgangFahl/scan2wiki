@@ -9,13 +9,14 @@ Updated on 2025-11-26 for https://github.com/WolfgangFahl/scan2wiki/issues/25
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Tuple
 
 import requests
 from ngwidgets.ai_tasks import AITasks
 from ngwidgets.image_cropper import ImageCropper
 from ngwidgets.lod_grid import ListOfDictsGrid
 from ngwidgets.widgets import Link
-from nicegui import background_tasks, ui
+from nicegui import background_tasks, run, ui
 
 from scan.amazon import Amazon
 from scan.barcode import Barcode
@@ -27,7 +28,12 @@ class BaseWebcamForm:
     Base class for webcam functionality
     """
 
-    def __init__(self, solution, webcams: dict = None, path: str = None):
+    def __init__(
+        self,
+        solution,
+        webcams: Optional[dict] = None,
+        path: Optional[str] = None,
+    ):
         """
         Initialize base webcam functionality
 
@@ -50,9 +56,12 @@ class BaseWebcamForm:
         if self.image_path:
             background_tasks.create(self.update_image_preview())
 
-    def notify(self, msg):
+    def notify(self, msg: str):
         """
         Display notification in UI
+
+        Args:
+            msg (str): the message to show
         """
         with self.preview_row:
             ui.notify(msg)
@@ -78,6 +87,7 @@ class BaseWebcamForm:
                 if self.webcams:
                     # The select shows friendly names (keys) and stores the URL (values)
                     # Swap dict: {url: name} so select displays names but stores URLs
+                    # two webcams sharing one URL collapse to a single entry
                     swapped = {url: name for name, url in self.webcams.items()}
 
                     self.webcam_select = self.solution.add_select(
@@ -130,25 +140,29 @@ class BaseWebcamForm:
             self.solution.handle_exception(ex)
 
     async def update_image_preview(self):
+        """
+        refresh the preview from the current image path
+        """
         self.update_preview(self.image_path)
 
     async def perform_webcam_shot(self):
         """
-        Perform the webcam capture
+        Perform the webcam capture - the blocking HTTP fetch runs in
+        a worker thread so the event loop stays free
         """
         try:
-            self.image_path, msg = self.save_webcam_shot()
+            self.image_path, msg = await run.io_bound(self.save_webcam_shot)
             self.notify(msg)
             await self.update_image_preview()
         except Exception as ex:
             self.solution.handle_exception(ex)
 
-    def save_webcam_shot(self) -> tuple[str, str]:
+    def save_webcam_shot(self) -> Tuple[Optional[str], str]:
         """
-        Save image from webcam
+        Save image from webcam - blocking, run via run.io_bound
 
         Returns:
-            tuple: (filename, message)
+            Tuple[Optional[str], str]: (filename or None on failure, message)
         """
         image_file_name = None
         msg = "?"
@@ -158,31 +172,30 @@ class BaseWebcamForm:
                 Path(self.scandir).mkdir(parents=True, exist_ok=True)
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
                 image_file_name = f"webcam_{timestamp}.jpg"
-                image_file_path = Path(self.scandir) / image_file_name
-
+                image_file_path = self.scans.get_full_path(image_file_name)
                 with open(image_file_path, "wb") as image_file:
                     image_file.write(response.content)
                 self.cropper.file_path = image_file_path
                 msg = f"Saved webcam image to {image_file_path}"
             else:
                 msg = f"Failed to fetch the webcam image. Status code: {response.status_code}"
-                image_file_name = ""
-        except Exception as ex:
-            # Don't crash main loop, just return error
+        except requests.RequestException as ex:
+            # report instead of crashing - the caller shows the message
             msg = str(ex)
-            image_file_name = ""
-
         return image_file_name, msg
 
-    def update_preview(self, image_path: str = None):
+    def update_preview(self, image_path: Optional[str] = None):
         """
         Update the preview image in UI
+
+        Args:
+            image_path: relative image path or None to clear the preview
         """
         try:
             with self.preview_row:
                 if image_path:
                     # Set the file_path for the cropper so rotate/crop operations work immediately
-                    self.cropper.file_path = str(Path(self.scandir) / image_path)
+                    self.cropper.file_path = self.scans.get_full_path(image_path)
                     # External url
                     url = f"/files/{image_path}"
                     self.cropper.set_source(url)
@@ -198,7 +211,7 @@ class ProductWebcamForm(BaseWebcamForm):
     Extension of WebcamForm for barcode scanning and product management
     """
 
-    def __init__(self, solution, webcams: dict = None):
+    def __init__(self, solution, webcams: Optional[dict] = None):
         """
         Initialize product handling functionality
         """
@@ -246,14 +259,15 @@ class ProductWebcamForm(BaseWebcamForm):
             self.update_product_grid()
             self.notify(f"Added product: {self.product.title}")
 
-    def lookup_gtin(self):
+    async def lookup_gtin(self):
         """
-        Lookup product by GTIN/EAN
+        Lookup product by GTIN/EAN - the blocking Amazon lookup runs
+        in a worker thread so the event loop stays free
         """
         if not self.gtin:
             return
 
-        amazon_products = self.amazon.lookup_products(self.gtin)
+        amazon_products = await run.io_bound(self.amazon.lookup_products, self.gtin)
         if amazon_products:
             self.product = amazon_products[0]
             self.product.gtin = self.gtin
@@ -269,12 +283,13 @@ class ProductWebcamForm(BaseWebcamForm):
 
     async def scan_barcode(self):
         """
-        Scan image for barcodes
+        Scan image for barcodes - the decode runs in a worker thread
+        so the event loop stays free
         """
         try:
             if self.image_path:
-                barcode_path = f"{self.scandir}/{self.image_path}"
-                barcode_list = Barcode.decode(barcode_path)
+                barcode_path = self.scans.get_full_path(self.image_path)
+                barcode_list = await run.io_bound(Barcode.decode, barcode_path)
                 if barcode_list and len(barcode_list) >= 1:
                     barcode = barcode_list[0]
                     self.gtin_input.value = barcode.code
@@ -293,7 +308,7 @@ class AIWebcamForm(BaseWebcamForm):
     Extension of WebcamForm with AI capabilities via ngwidgets.VisionLLM
     """
 
-    def __init__(self, solution, webcams: dict, path: str = None):
+    def __init__(self, solution, webcams: dict, path: Optional[str] = None):
         """
         Initialize AI functionality
 
@@ -310,8 +325,9 @@ class AIWebcamForm(BaseWebcamForm):
         self.selected_task = (
             next(iter(self.ai_tasks.tasks)) if self.ai_tasks.tasks else None
         )
+        # models come from ai_tasks.yaml - no hardcoded fallback
         self.selected_model = (
-            next(iter(self.ai_tasks.models)) if self.ai_tasks.models else "gpt-4o-mini"
+            next(iter(self.ai_tasks.models)) if self.ai_tasks.models else None
         )
         self.setup_ai_form()
 
@@ -349,7 +365,6 @@ class AIWebcamForm(BaseWebcamForm):
                 ).bind_value(self, "selected_model")
 
                 self.markup_result = ui.editor(placeholder="Markup will show here")
-                pass
         except Exception as ex:
             self.solution.handle_exception(ex)
 
@@ -360,7 +375,13 @@ class AIWebcamForm(BaseWebcamForm):
         background_tasks.create(self.perform_analysis())
 
     def show_markup(self, msg: str, with_notify: bool = True):
-        # display results
+        """
+        display the given markup in the editor
+
+        Args:
+            msg (str): the markup to show
+            with_notify (bool): True to also raise a notification
+        """
         with self.markup_row:
             self.markup_result.value = f"<pre>{msg}</pre>"
         if with_notify:
@@ -395,20 +416,24 @@ class AIWebcamForm(BaseWebcamForm):
 
     async def perform_analysis(self):
         """
-        Perform the AI analysis of the image using AITasks
+        Perform the AI analysis of the image using AITasks - the
+        blocking LLM call runs in a worker thread so the event loop
+        stays free
         """
         try:
             if self.selected_task is None:
                 self.notify("No AI task selected.")
                 return
 
+            if self.selected_model is None:
+                self.notify("No model configured in ai_tasks.yaml.")
+                return
+
             if not self.image_path:
                 self.notify("No image available for analysis")
                 return
 
-            # Construct full local path
-            full_image_path = f"{self.scandir}/{self.image_path}"
-
+            full_image_path = self.scans.get_full_path(self.image_path)
             if not os.path.exists(full_image_path):
                 self.notify(f"File not found: {full_image_path}")
                 return
@@ -420,7 +445,8 @@ class AIWebcamForm(BaseWebcamForm):
             params = {
                 "image_path": full_image_path
             }  # Add more params if needed for prompt templating
-            markup = self.ai_tasks.perform_task(
+            markup = await run.io_bound(
+                self.ai_tasks.perform_task,
                 model_name=self.selected_model,
                 task_name=self.selected_task,
                 params=params,
