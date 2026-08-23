@@ -159,6 +159,18 @@ class TestGeometry(Basetest):
             achieved = axis.to_fraction(axis.to_command(fraction))
             self.assertAlmostEqual(fraction, achieved, delta=1 / axis.scale)
 
+    def test_axis_command_is_int(self):
+        """
+        the command reaches the camera as the string "x,y" - a float
+        like "1656.0" is silently dropped by the camera, so every
+        command must be an int even when the calibration was loaded
+        with float values from yaml
+        """
+        float_axis = Axis(scale=2548.0, offset=213.0, cmd_max=1656.0)
+        for fraction in (0.0, 0.5, 1.0):
+            command = float_axis.to_command(fraction)
+            self.assertIsInstance(command, int, msg=f"fraction {fraction}")
+
     def test_eos1000d_calibration(self):
         """
         the shipped Canon EOS 1000D calibration must reproduce the

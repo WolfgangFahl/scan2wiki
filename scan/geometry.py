@@ -243,7 +243,9 @@ class Axis:
             int: the clamped command value
         """
         command = round(self.scale * fraction + self.offset)
-        command = min(max(command, round(self.offset)), self.cmd_max)
+        # int() guards against float yaml values reaching the
+        # camera's position string as "1656.0"
+        command = int(min(max(command, round(self.offset)), self.cmd_max))
         return command
 
     def to_fraction(self, command: int) -> float:
