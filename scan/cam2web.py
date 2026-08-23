@@ -182,6 +182,7 @@ class Cam2WebServer(InputWebserver):
                 "height": window.height,
             },
             "frame_size": camera.frame_size,
+            "calibration": camera.calibration.model if camera.calibration else None,
             "last_error": self.last_error,
         }
         pixels = camera.commanded_pixels()

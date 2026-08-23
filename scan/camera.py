@@ -675,7 +675,8 @@ class GPhoto2Camera(Camera):
             return
         root = self.camera.get_config()
         node = self._cfg_node(root, "cameramodel")
-        model = str(node.get_value()) if node else ""
+        # gphoto2 widgets can be falsy - test against None as everywhere
+        model = str(node.get_value()) if node is not None else ""
         calibrations = CameraCalibrations.get_instance()
         self.calibration = (calibrations.cameras or {}).get(model)
         if self.calibration is None:
