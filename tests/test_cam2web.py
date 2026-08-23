@@ -15,6 +15,7 @@ from ngwidgets.basetest import Basetest
 from PIL import Image
 
 from scan.cam2web import Cam2WebServer, Camera, GPhoto2Camera, MagnifyState, MockCamera
+from scan.camera import CameraCalibrations
 
 
 class CountingCamera(GPhoto2Camera):
@@ -296,6 +297,37 @@ class TestCam2Web(Basetest):
         camera.set_zoom_position(1.5, -0.5)
         self.assertEqual(1.0, camera.window.cx)
         self.assertEqual(0.0, camera.window.cy)
+        camera.shutdown()
+
+    def test_calibrated_magnify(self):
+        """
+        test the issue 41 calibrated magnify: the position command is
+        the measured Dreisatz, 10x is a digital enlargement of the
+        native 5x window
+        """
+        camera = CountingCamera()
+        camera.calibration = CameraCalibrations.get_instance().cameras[
+            "Canon EOS 1000D"
+        ]
+        camera.set_zoom(5)
+        camera.set_zoom_position(0.5768, 0.5898)
+        window = camera.magnify_window()
+        # native window fractions from the calibration
+        self.assertAlmostEqual(768 / 3888, window.width)
+        self.assertAlmostEqual(792 / 2592, window.height)
+        # command = desired center - measured offset
+        x, y = camera.commanded_pixels()
+        self.assertEqual(int(0.5768 * 3888) - 410, x)
+        self.assertEqual(int(0.5898 * 2592) - 143, y)
+        # 10x halves the window, the command stays center based
+        camera.set_zoom(10)
+        self.assertAlmostEqual(2.0, camera.digital_factor())
+        window = camera.magnify_window()
+        self.assertAlmostEqual(768 / 3888 / 2, window.width)
+        self.assertEqual((x, y), camera.commanded_pixels())
+        # command clamped to the native window range
+        camera.set_zoom_position(0.0, 0.0)
+        self.assertEqual((0, 0), camera.commanded_pixels())
         camera.shutdown()
 
     def test_rotation_keeps_sensor_window(self):

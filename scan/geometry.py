@@ -215,6 +215,32 @@ class Window:
 
 
 @dataclass
+class Calibration:
+    """
+    measured linear map between a desired window center and the
+    camera's position value - slope one, constant offset per axis;
+    the Dreisatz of issue 41: command = center - offset
+    """
+
+    dx: int = 0
+    dy: int = 0
+
+    def to_command(self, cx: int, cy: int) -> Tuple[int, int]:
+        """
+        the position value that centers the window at the given point
+
+        Args:
+            cx (int): desired horizontal window center in pixels
+            cy (int): desired vertical window center in pixels
+
+        Returns:
+            Tuple[int, int]: (x, y) position value to command
+        """
+        command = (cx - self.dx, cy - self.dy)
+        return command
+
+
+@dataclass
 class Grid:
     """
     a pixel grid of the given size - converts standard grid fractions

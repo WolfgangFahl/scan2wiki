@@ -10,7 +10,7 @@ and https://github.com/WolfgangFahl/scan2wiki/issues/39
 
 from ngwidgets.basetest import Basetest
 
-from scan.geometry import Grid, Rotation, Window
+from scan.geometry import Calibration, Grid, Rotation, Window
 
 
 class TestGeometry(Basetest):
@@ -102,6 +102,14 @@ class TestGeometry(Basetest):
         self.assertEqual(0.0, y0)
         self.assertTrue(window.contains(0.95, 0.05))
         self.assertFalse(window.contains(0.5, 0.5))
+
+    def test_calibration(self):
+        """
+        test the issue 41 Dreisatz: command = center - measured offset
+        """
+        calibration = Calibration(dx=410, dy=143)
+        self.assertEqual((1832, 1386), calibration.to_command(2242, 1529))
+        self.assertEqual((0, 0), Calibration().to_command(0, 0))
 
     def test_grid(self):
         """
