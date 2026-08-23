@@ -12,6 +12,9 @@ Scan from ScanSnap to SemanticMediaWiki
 [![BITPlan](http://wiki.bitplan.com/images/wiki/thumb/3/38/BITPlanLogoFontLessTransparent.png/198px-BITPlanLogoFontLessTransparent.png)](http://www.bitplan.com)
 
 
+## Scan Interface
+![scan2wiki scan interface with live view](docs/images/scan-interface.png)
+
 ## Links
 * [Python](https://www.python.org/)
 * [pywikibot](https://pypi.org/project/pywikibot/)
