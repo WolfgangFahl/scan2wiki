@@ -121,6 +121,10 @@ class Camera:
         # True while a zoom level or position change still has to be
         # written to the magnifying camera
         self.zoom_dirty = False
+        # the zoom level last written to the camera - the camera's
+        # own readback always reports 0, so the level written is the
+        # only truth; reset when the served frames prove it wrong
+        self.applied_level = 1
         # (width, height) of the last full preview frame
         self.frame_size = None
         # measured per model magnify constants, resolved on open
@@ -405,6 +409,15 @@ class Camera:
             self.do_apply_camera_zoom()
             self.zoom_dirty = False
         frame = self.do_preview_frame()
+        # closed loop against silently dropped level writes: a frame
+        # that does not have the calibrated zoom raster proves the
+        # camera is not magnifying - re-engage with the next frame
+        if self.calibration and self.calibration.zoom_raster:
+            with Image.open(BytesIO(frame)) as image:
+                size = list(image.size)
+            if size != list(self.calibration.zoom_raster):
+                self.applied_level = 1
+                self.zoom_dirty = True
         factor = self.digital_factor()
         if factor > 1.0:
             frame = self.enlarge(frame, factor)
@@ -655,9 +668,6 @@ class GPhoto2Camera(Camera):
         self.camera = None
         self.viewfinder_on = False
         self.transitions = []  # timestamps of viewfinder transitions
-        # the eoszoom level last written - the camera's own readback
-        # always reports 0, so the level written is the only truth
-        self.applied_level = 1
 
     shell = Shell()
     daemons = {
@@ -1026,6 +1036,12 @@ class GPhoto2Camera(Camera):
         Returns:
             bool: True if the camera supports eoszoom
         """
+        # a level write on a camera without live view is dropped, so
+        # the viewfinder is switched on first and given time to start
+        was_on = self.viewfinder_on
+        self.set_viewfinder(True)
+        if not was_on:
+            time.sleep(0.5)
         root = self.camera.get_config()
         node = self._cfg_node(root, "eoszoom")
         supported = node is not None
