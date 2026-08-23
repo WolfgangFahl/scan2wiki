@@ -1062,7 +1062,10 @@ class GPhoto2Camera(Camera):
             node = self._cfg_node(root, "eoszoom")
             if node is not None:
                 node.set_value("1")
-                self.camera.set_config(root)
+                # settle like every other zoom write - an unsettled
+                # release is dropped by the camera and the live view
+                # stays magnified
+                self.settle_config(root)
 
         self.with_retry(op)
         self.camera_zoom = False
