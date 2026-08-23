@@ -222,7 +222,7 @@ class TestCam2Web(Basetest):
         self.assertTrue(camera.start_camera_zoom())
         applied = []
         camera.do_apply_camera_zoom = lambda: applied.append(
-            (camera.zoom_level, camera.zoom_fx, camera.zoom_fy)
+            (camera.zoom_level, camera.window.cx, camera.window.cy)
         )
         frame_10x = camera.zoom_frame()
         self.assertEqual((768, 512), self.jpeg_size(frame_10x))
@@ -288,34 +288,38 @@ class TestCam2Web(Basetest):
         camera = MockCamera()
         camera.set_zoom(10)
         camera.set_zoom_position(0.0, 0.0)
-        x0, y0, width, height = camera.crop_fractions()
+        x0, y0, width, height = camera.display_box()
         self.assertEqual(0.0, x0)
         self.assertEqual(0.0, y0)
         self.assertAlmostEqual(0.1, width)
         self.assertAlmostEqual(0.1, height)
         camera.set_zoom_position(1.5, -0.5)
-        self.assertEqual(1.0, camera.zoom_fx)
-        self.assertEqual(0.0, camera.zoom_fy)
+        self.assertEqual(1.0, camera.window.cx)
+        self.assertEqual(0.0, camera.window.cy)
         camera.shutdown()
 
-    def test_unrotate_fraction(self):
+    def test_rotation_keeps_sensor_window(self):
         """
-        test the mapping of rotated display fractions back to sensor
-        fractions for the eoszoomposition entry
+        test that the display rotation is a pure view transform: the
+        magnifying frame stays anchored to the sensor area it frames
+        and the position sent to the camera does not change when the
+        view rotates
         """
         camera = CountingCamera()
-        point = (0.25, 0.5)
-        expected = {
-            0: (0.25, 0.5),
-            90: (0.5, 0.75),
-            180: (0.75, 0.5),
-            270: (0.5, 0.25),
-        }
-        for rotation, sensor in expected.items():
-            camera.rotation = rotation
-            fx, fy = camera.unrotate_fraction(*point)
-            self.assertAlmostEqual(sensor[0], fx, msg=f"rotation {rotation}")
-            self.assertAlmostEqual(sensor[1], fy, msg=f"rotation {rotation}")
+        camera.set_zoom(5)
+        camera.set_zoom_position(0.25, 0.5)
+        window = (camera.window.cx, camera.window.cy)
+        commanded = camera.commanded_pixels()
+        for _ in range(4):
+            camera.rotate_by(90)
+            self.assertEqual(window, (camera.window.cx, camera.window.cy))
+            self.assertEqual(commanded, camera.commanded_pixels())
+        # the drawn display box follows the rotation instead
+        camera.rotation = 0
+        box_0 = camera.display_box()
+        camera.rotation = 90
+        box_90 = camera.display_box()
+        self.assertNotEqual(box_0, box_90)
         camera.shutdown()
 
     def test_rotation(self):
