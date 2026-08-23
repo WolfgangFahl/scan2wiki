@@ -125,6 +125,10 @@ class Camera:
         # own readback always reports 0, so the level written is the
         # only truth; reset when the served frames prove it wrong
         self.applied_level = 1
+        # True once a served frame has the calibrated zoom raster -
+        # the camera ignores position writes while still engaging,
+        # so positions are only sent after this confirmation
+        self.zoom_confirmed = False
         # (width, height) of the last full preview frame
         self.frame_size = None
         # measured per model magnify constants, resolved on open
@@ -406,8 +410,11 @@ class Camera:
                 "camera magnification not engaged - no digital zoom is served"
             )
         if self.zoom_dirty:
-            self.do_apply_camera_zoom()
+            # clear before applying - the apply may leave a pending
+            # position for the next frame cycle by setting the flag
+            # again, see write_zoom_config
             self.zoom_dirty = False
+            self.do_apply_camera_zoom()
         frame = self.do_preview_frame()
         # closed loop against silently dropped level writes: a frame
         # that does not have the calibrated zoom raster proves the
@@ -415,7 +422,8 @@ class Camera:
         if self.calibration and self.calibration.zoom_raster:
             with Image.open(BytesIO(frame)) as image:
                 size = list(image.size)
-            if size != list(self.calibration.zoom_raster):
+            self.zoom_confirmed = size == list(self.calibration.zoom_raster)
+            if not self.zoom_confirmed:
                 self.applied_level = 1
                 self.zoom_dirty = True
         factor = self.digital_factor()
@@ -1055,16 +1063,26 @@ class GPhoto2Camera(Camera):
                 node.set_value(str(native))
                 self.settle_config(root)
                 self.applied_level = native
-            position_root = self.camera.get_config()
-            position = self._cfg_node(position_root, "eoszoomposition")
-            if position is not None:
-                x, y = self.commanded_pixels()
-                position.set_value(f"{x},{y}")
-                # the widget always reads back 0,0 - without the
-                # forced changed flag a commanded 0,0 is silently
-                # dropped as unchanged
-                position.set_changed(True)
-                self.settle_config(position_root)
+                # the camera ignores a position sent while it is
+                # still engaging - leave the position pending for
+                # the next frame cycle
+                self.zoom_confirmed = False
+                self.zoom_dirty = True
+            elif self.calibration and not self.zoom_confirmed:
+                # engagement not proven by a served frame yet - keep
+                # the position pending
+                self.zoom_dirty = True
+            else:
+                position_root = self.camera.get_config()
+                position = self._cfg_node(position_root, "eoszoomposition")
+                if position is not None:
+                    x, y = self.commanded_pixels()
+                    position.set_value(f"{x},{y}")
+                    # the widget always reads back 0,0 - without the
+                    # forced changed flag a commanded 0,0 is
+                    # silently dropped as unchanged
+                    position.set_changed(True)
+                    self.settle_config(position_root)
         return supported
 
     def settle_config(self, root):
@@ -1121,6 +1139,7 @@ class GPhoto2Camera(Camera):
                 # stays magnified
                 self.settle_config(root)
                 self.applied_level = 1
+                self.zoom_confirmed = False
 
         self.with_retry(op)
         self.camera_zoom = False
