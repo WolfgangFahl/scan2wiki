@@ -1,5 +1,5 @@
 # scan2wiki
-Scan from ScanSnap to SemanticMediaWiki
+Scan from cams and scanners to Document Management System and SemanticMediaWiki
 
 [![pypi](https://img.shields.io/pypi/pyversions/scan2wiki)](https://pypi.org/project/scan2wiki/)
 [![Github Actions Build](https://github.com/WolfgangFahl/scan2wiki/actions/workflows/build.yml/badge.svg)](https://github.com/WolfgangFahl/scan2wiki/actions/workflows/build.yml)
@@ -14,6 +14,50 @@ Scan from ScanSnap to SemanticMediaWiki
 
 ## Scan Interface
 ![scan2wiki scan interface with live view](docs/images/scan-interface.png)
+
+## CLI Usage
+### scan2wiki
+Semantified Document Management System webserver
+
+```bash
+scan2wiki -h
+```
+```
+usage: scan2wiki [-h] [-a] [-d] [--debugLocalPath DEBUGLOCALPATH]
+                 [--debugPort DEBUGPORT] [--debugRemotePath DEBUGREMOTEPATH]
+                 [--debugServer DEBUGSERVER] [-f] [-q] [-v] [-V]
+                 [--apache APACHE] [-c] [-l] [-i INPUT] [-rol] [--host HOST]
+                 [--port PORT] [-s] [-rp ROOT_PATH] [-wc WEBCAMS]
+                 [--web-host WEB_HOST]
+```
+Start the webserver on the default port 8334:
+```bash
+scan2wiki -s
+```
+Serve with webcams configured as name-url pairs:
+```bash
+scan2wiki -s --webcams cam1=http://cam1.example/mjpeg
+```
+
+### cam2web
+webcam emulator serving a camera via gphoto2 - e.g. an EOS as network camera
+
+```bash
+cam2web -h
+```
+```
+usage: cam2web [-h] [-a] [-d] [--debugLocalPath DEBUGLOCALPATH]
+               [--debugPort DEBUGPORT] [--debugRemotePath DEBUGREMOTEPATH]
+               [--debugServer DEBUGSERVER] [-f] [-q] [-v] [-V]
+               [--apache APACHE] [-c] [-l] [-i INPUT] [-rol] [--host HOST]
+               [--port PORT] [-s] [--camera {gphoto2,mock}]
+               [--rotate {0,90,180,270,auto}] [--fps FPS]
+```
+Serve a gphoto2 camera as MJPEG stream on the default port 8088:
+```bash
+cam2web -s
+```
+Options: `--camera {gphoto2,mock}`, `--rotate {0,90,180,270,auto}` for EXIF based autorotate, `--fps` for the stream frame rate.
 
 ## Links
 * [Python](https://www.python.org/)
