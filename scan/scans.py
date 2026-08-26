@@ -38,8 +38,16 @@ class Scans:
 
         Returns:
             str: The full path combining the scandir and the provided relative path.
+
+        Raises:
+            ValueError: if the path escapes the scan directory
         """
         fullpath = os.path.join(self.scandir, path)
+        # paths come from URLs - refuse traversal out of the scan
+        # directory (../ or absolute paths)
+        base = Path(self.scandir).resolve()
+        if not Path(fullpath).resolve().is_relative_to(base):
+            raise ValueError(f"path escapes scan directory: {path}")
         return fullpath
 
     def get_file_link(self, path: str) -> str:

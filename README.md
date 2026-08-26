@@ -40,24 +40,8 @@ scan2wiki -s --webcams cam1=http://cam1.example/mjpeg
 ```
 
 ### cam2web
-webcam emulator serving a camera via gphoto2 - e.g. an EOS as network camera
-
-```bash
-cam2web -h
-```
-```
-usage: cam2web [-h] [-a] [-d] [--debugLocalPath DEBUGLOCALPATH]
-               [--debugPort DEBUGPORT] [--debugRemotePath DEBUGREMOTEPATH]
-               [--debugServer DEBUGSERVER] [-f] [-q] [-v] [-V]
-               [--apache APACHE] [-c] [-l] [-i INPUT] [-rol] [--host HOST]
-               [--port PORT] [-s] [--camera {gphoto2,mock}]
-               [--rotate {0,90,180,270,auto}] [--fps FPS]
-```
-Serve a gphoto2 camera as MJPEG stream on the default port 8088:
-```bash
-cam2web -s
-```
-Options: `--camera {gphoto2,mock}`, `--rotate {0,90,180,270,auto}` for EXIF based autorotate, `--fps` for the stream frame rate.
+The webcam emulator serving a gphoto2 camera moved to its own project, see
+[cam2web](https://github.com/WolfgangFahl/cam2web).
 
 ## Links
 * [Python](https://www.python.org/)

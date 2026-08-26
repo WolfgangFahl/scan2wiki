@@ -84,10 +84,9 @@ class ScanWebServer(InputWebserver):
         async def show_archive(client: Client, archive_id: str):
             return await self.page(client, ScanSolution.show_archive, archive_id)
 
-        @app.get("/delete/{path:path}")
-        def delete(path: str = None):
-            self.scans.delete(path, with_txt=True)
-            return RedirectResponse("/")
+        @ui.page("/delete/{path:path}")
+        async def delete(client: Client, path: str = None):
+            return await self.page(client, ScanSolution.delete, path)
 
         @app.route("/files")
         @app.get("/files/{path:path}")
@@ -101,7 +100,10 @@ class ScanWebServer(InputWebserver):
         Args:
             path (str): the path to render
         """
-        fullpath = f"{self.scandir}/{path}"
+        try:
+            fullpath = Scans(self.scandir).get_full_path(path)
+        except ValueError as ex:
+            return HTMLResponse(content=str(ex), status_code=403)
         if os.path.isdir(fullpath):
             self.scans = Scans(fullpath)
             return RedirectResponse("/")
@@ -173,6 +175,24 @@ class ScanSolution(InputWebSolution):
 
         result = await dialog
         return result
+
+    async def delete(self, path: str = None):
+        """
+        confirm and delete the given scan file - deletion needs an
+        explicit yes so that link prefetching cannot wipe scans
+        """
+
+        def setup_delete():
+            ui.label(f"delete {path}?")
+
+        await self.setup_content_div(setup_delete)
+        if await self.confirm(f"delete {path}?"):
+            try:
+                self.webserver.scans.delete(path, with_txt=True)
+            except ValueError as ex:
+                ui.notify(str(ex), type="negative")
+                return
+        ui.navigate.to("/")
 
     async def upload(self, path: str = None):
         """

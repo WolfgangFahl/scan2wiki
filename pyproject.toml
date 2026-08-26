@@ -54,10 +54,7 @@ dependencies = [
 	# https://github.com/NaturalHistoryMuseum/pyzbar
 	# https://pypi.org/project/pyzbar/
 	"pyzbar>=0.1.9",
-	# python interface to libgphoto2
-	# https://pypi.org/project/gphoto2/
-	"gphoto2>=2.5.0",
-	# image rotation, EXIF transpose and zoom crop for cam2web
+	# image handling for the barcode reader
 	# https://pypi.org/project/pillow/
 	"pillow>=10.0.0"
 ]
@@ -101,4 +98,3 @@ only-include = ["scan","scan2wiki_examples"]
 
 [project.scripts]
 scan2wiki = "scan.scan_cmd:main"
-cam2web = "scan.cam2web_cmd:main"

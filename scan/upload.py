@@ -68,8 +68,9 @@ class UploadLogFilter(logging.Filter):
         msg = str(record.msg).lower()
         # make sure errors are still shown
         if "error" in msg:
-            return False
-        return True  # Prevent standard logging
+            return True
+        # suppress the routine log flood - it is counted above
+        return False
 
 
 class UploadForm:
@@ -95,12 +96,24 @@ class UploadForm:
         self.doc.fromFile(folderPath=self.scandir, file=path, local=True, withOcr=True)
         self.setup_form()
         self.upload_log_filter = UploadLogFilter(self.progressbar)
+        # handlers and filters of earlier upload forms are removed
+        # first - otherwise every opened form adds another set and
+        # keeps feeding dead progress bars
+        previous_handlers = getattr(self.webserver, "upload_form_handlers", [])
+        for handler in previous_handlers:
+            self.webserver.logger.removeHandler(handler)
         self.webserver.logger.addHandler(self.solution.stdout_handler)
         self.webserver.logger.addHandler(self.solution.stderr_handler)
+        self.webserver.upload_form_handlers = [
+            self.solution.stdout_handler,
+            self.solution.stderr_handler,
+        ]
         for logger_name in logging.Logger.manager.loggerDict:
-            # print(logger_name)
             logger = logging.getLogger(logger_name)
             logger.propagate = True
+            for log_filter in list(logger.filters):
+                if isinstance(log_filter, UploadLogFilter):
+                    logger.removeFilter(log_filter)
             logger.addFilter(self.upload_log_filter)
 
         self.uploaded = False
@@ -208,18 +221,6 @@ class UploadForm:
             self.page_link.content = wiki_link
             link_style = self.blue_link if self.uploaded else self.red_link
             self.page_link.style(link_style)
-
-    def to_document(self, scandir, withOcr: bool = False):
-        """
-        convert my content to a document
-        """
-        doc = Document()
-        doc.fromFile(scandir, self.scanned_file.value, local=True, withOcr=withOcr)
-        doc.wikiUser = self.wiki_user_select.value
-        doc.categories = self.categories.value
-        if not withOcr:
-            doc.ocrText = self.ocr_text_area.value
-        return doc
 
     async def run_upload(self):
         """
