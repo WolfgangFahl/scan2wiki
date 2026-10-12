@@ -15,13 +15,14 @@ import os
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, List, Optional
 
-from basemkit.yamlable import lod_storable
 from bs4 import UnicodeDammit
+from lodentity.entity import EntityManager
+from lodentity.jsonable import JSONAble, JSONAbleList
 from lodstorage.sql import SQLDB
 from lodstorage.storageconfig import StorageConfig, StoreMode
 from wikibot3rd.smw import SMWClient
@@ -29,7 +30,6 @@ from wikibot3rd.wikiclient import WikiClient
 from wikibot3rd.wikipush import WikiPush
 from wikibot3rd.wikiuser import WikiUser
 
-from scan.entity import EntityManager
 from scan.logger import Logger
 from scan.pdf import PDFExtractor
 
@@ -215,8 +215,8 @@ class DMSStorage:
         return ftimestr
 
 
-@lod_storable
-class Document:
+@dataclass
+class Document(JSONAble):
     """
     a document consist of one or more files in the filesystem
     or a wikipage - the name is the pagetitle
@@ -281,10 +281,8 @@ class Document:
     # Content
     ocrText: Optional[str] = None  # Extracted OCR text from document
 
-    # Internal fields for string representation
-    fields: list = field(
-        default_factory=lambda: ["archiveName", "folderPath", "fileName"]
-    )
+    # fields for string representation - class level so that stored records have no list
+    fields: ClassVar[List[str]] = ["archiveName", "folderPath", "fileName"]
 
     @classmethod
     def getSamples(cls):
@@ -534,8 +532,8 @@ class Document:
         return pageContent
 
 
-@lod_storable
-class Folder:
+@dataclass
+class Folder(JSONAble):
     """
     a Folder might be a filesystem folder or a category in a wiki.
     Maps to the SQLite table 'folder'.
@@ -701,7 +699,7 @@ class Folder:
         pass
 
 
-class DocumentManager(EntityManager):
+class DocumentManager(EntityManager, JSONAbleList):
     """
     manager for Documents
     """
@@ -739,7 +737,7 @@ class DocumentManager(EntityManager):
         return dm
 
 
-class FolderManager(EntityManager):
+class FolderManager(EntityManager, JSONAbleList):
     """
     manager for Archives
     """
@@ -828,8 +826,8 @@ class FolderManager(EntityManager):
         pass
 
 
-@lod_storable
-class Archive:
+@dataclass
+class Archive(JSONAble):
     """
     An Archive might be a filesystem on a server or a (semantic) MediaWiki.
     Maps to the SQLite table 'archive'.
@@ -852,17 +850,14 @@ class Archive:
     folderCount: int = 0
     documentCount: int = 0
 
-    # Internal fields for string representation (optional)
-    fields: list = field(
-        default_factory=lambda: [
-            "name",
-            "server",
-            "url",
-            "folderCount",
-            "documentCount",
-        ],
-        init=False,
-    )
+    # fields for string representation - class level so that stored records have no list
+    fields: ClassVar[List[str]] = [
+        "name",
+        "server",
+        "url",
+        "folderCount",
+        "documentCount",
+    ]
 
     def __post_init__(self):
         """
@@ -915,14 +910,17 @@ class Archive:
         if hasattr(self, "wikiid") and self.wikiid is not None:
             smw = Wiki.getSMW(self.wikiid)
             for option in ["|format=count", ""]:
-                askQuery = """{{#ask: [[Category:OCRDocument]]
+                askQuery = (
+                    """{{#ask: [[Category:OCRDocument]]
 | mainlabel=page
 | ?Category
 | ?Modification date=lastModified
 | ?Creation date=created
 |limit=1000
 %s
-}}""" % option
+}}"""
+                    % option
+                )
                 print(askQuery)
                 result = smw.query(askQuery)
                 baseUrl = f"{smw.site.scheme}://{smw.site.host}{smw.site.path}index.php"
@@ -1024,7 +1022,7 @@ class Archive:
         return foldersByPath, documentList
 
 
-class ArchiveManager(EntityManager):
+class ArchiveManager(EntityManager, JSONAbleList):
     """
     manager for Archives
     """

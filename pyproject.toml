@@ -33,6 +33,8 @@ dependencies = [
     'py-3rdparty-mediawiki>=0.17.0',
 	# https://pypi.org/project/pylodstorage/
 	"pylodstorage>=0.17.0",
+	# https://github.com/WolfgangFahl/pylodentitymanager
+	"pylodentitymanager>=0.17.0",
 	# https://github.com/claird/PyPDF4
 	# https://pypi.org/project/PyPDF2/
 	# issue https://github.com/sfneal/PyPDF3/issues/13

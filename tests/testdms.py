@@ -29,7 +29,8 @@ class TestDMS(Basetest):
         """
         am = ArchiveManager(mode="json")
         for archiveRecord in Archive.getSamples():
-            archive = Archive.from_dict(archiveRecord)  # @UndefinedVariable
+            archive = Archive()
+            archive.fromDict(archiveRecord)
             am.getList().append(archive)
         return am
 
@@ -42,7 +43,7 @@ class TestDMS(Basetest):
         test the Archive concept
         """
         am = self.getSampleArchiveManager()
-        jsonStr = am.to_json(limit_to_sample_fields=True)
+        jsonStr = am.toJSON(limitToSampleFields=True)
         expectedNameValues = [
             '''"name": "media"''',
             '''"server": "media.bitplan.com"''',
@@ -73,7 +74,7 @@ class TestDMS(Basetest):
             amb = ArchiveManager.getInstance(mode="json")
             amb.fromCache()
             for archive in amb.archives:
-                if not hasattr(archive, "wikiid"):
+                if archive.wikiid is None:
                     archives.append(archive)
             expected["bitplan-scan"] = 320
             expected["fahl-scan"] = 190
@@ -85,9 +86,12 @@ class TestDMS(Basetest):
                 FolderManager.getInstance()
                 DocumentManager.getInstance()
             am.addFilesAndFoldersForArchive(archive, store=store)
-
-            # if not self.inPublicCI():
-            #    self.assertTrue(folderCount>=expected[archive.name])
+            fm = FolderManager.getInstance()
+            folders = [f for f in fm.folders if f.archiveName == archive.name]
+            folderCount = len(folders)
+            if self.debug:
+                print(f"{archive.name}: {folderCount} folders stored")
+            self.assertTrue(folderCount >= expected[archive.name])
             # foldersByName,_dup=fms.getLookup("path")
             # folder=foldersByName["/bitplan/scan/2019"]
             # if self.debug:
