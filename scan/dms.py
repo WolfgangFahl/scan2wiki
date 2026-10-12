@@ -40,18 +40,19 @@ class Wiki(object):
     """
 
     @staticmethod
-    def getSMW(wikiId: str):
+    def getSMW(wikiId: str, queryDivision: int = 1):
         """
         get the semantic mediawiki client with the given wikiId
 
         Args:
             wikiId: the wiki id of the client
+            queryDivision: number of parts to split a query into to get around the result limit of the wiki
 
         Return:
             SMWClient: the SMWClient with the given id
         """
         wikiClient = Wiki.get(wikiId)
-        smw = SMWClient(wikiClient.getSite())
+        smw = SMWClient(wikiClient.getSite(), queryDivision=queryDivision)
         return smw
 
     @staticmethod
@@ -277,6 +278,9 @@ class Document(JSONAble):
     # File metadata
     size: int = 0  # e.g. 315358 (bytes)
     types: str = ""  # e.g. "pdf,txt" (comma-separated file types available)
+    sha1: str = (
+        ""  # e.g. "a9993e364706816aba3e25717850c26c9cd0d89d" hex checksum of the file
+    )
 
     # Content
     ocrText: Optional[str] = None  # Extracted OCR text from document
@@ -304,6 +308,7 @@ class Document(JSONAble):
                 "lastModified": datetime(2019, 2, 27, 10, 7, 56),
                 "name": "2019",
                 "types": "pdf",
+                "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
                 "ocrText": "",
             }
         ]
@@ -727,8 +732,9 @@ class DocumentManager(EntityManager, JSONAbleList):
             config,
             handleInvalidListTypes,
             filterInvalidListTypes,
-            debug,
+            debug=debug,
         )
+        self.debug = debug
 
     @staticmethod
     def getInstance(mode="sql"):
@@ -765,8 +771,9 @@ class FolderManager(EntityManager, JSONAbleList):
             config,
             handleInvalidListTypes,
             filterInvalidListTypes,
-            debug,
+            debug=debug,
         )
+        self.debug = debug
 
     @staticmethod
     def getInstance(mode="sql"):
@@ -850,6 +857,10 @@ class Archive(JSONAble):
     folderCount: int = 0
     documentCount: int = 0
 
+    # SMW query settings for wiki archives - class level so that they are not stored
+    queryDivision: ClassVar[int] = 10
+    queryLimit: ClassVar[int] = 100000
+
     # fields for string representation - class level so that stored records have no list
     fields: ClassVar[List[str]] = [
         "name",
@@ -893,6 +904,59 @@ class Archive(JSONAble):
         nPageTitle = pageTitle.replace(" ", "_")
         return nPageTitle
 
+    def getPdfUploads(self, site, progress_bar=None):
+        """
+        get the PDF files uploaded to the wiki of this archive via the MediaWiki API
+
+        Args:
+            site: the mwclient site of the wiki
+            progress_bar(Progressbar): a progress bar to track progress
+
+        Returns:
+            tuple: the folder File and the list of upload documents
+        """
+        baseUrl = f"{site.scheme}://{site.host}{site.path}index.php"
+        folder = Folder()
+        folder.archiveName = self.name
+        folder.name = "File"
+        folder.path = "File"
+        folder.url = f"{baseUrl}/Special:ListFiles"
+        documents = []
+        params = {
+            "list": "allimages",
+            "aimime": "application/pdf",
+            "aiprop": "url|size|timestamp|sha1",
+            "ailimit": "max",
+        }
+        while True:
+            result = site.api("query", http_method="GET", **params)
+            for image in result["query"]["allimages"]:
+                doc = Document()
+                doc.archiveName = self.name
+                doc.folderPath = folder.path
+                doc.name = image["name"]
+                doc.fileName = image["name"]
+                doc.url = image["url"]
+                doc.size = image["size"]
+                doc.sha1 = image["sha1"]
+                doc.types = "pdf"
+                doc.lastModified = datetime.strptime(
+                    image["timestamp"], "%Y-%m-%dT%H:%M:%SZ"
+                )
+                doc.created = doc.lastModified
+                documents.append(doc)
+                if progress_bar:
+                    progress_bar.total += 1
+                    progress_bar.update_value(progress_bar.value + 1)
+            if "continue" not in result:
+                break
+            params.update(result["continue"])
+        folder.fileCount = len(documents)
+        if documents:
+            folder.lastModified = max(doc.lastModified for doc in documents)
+            folder.created = min(doc.created for doc in documents)
+        return folder, documents
+
     def getFoldersAndDocuments(self, withOcr=False, progress_bar=None):
         """
         get the folders and documents of this archive
@@ -908,7 +972,7 @@ class Archive(JSONAble):
         documentList = []
         # this archive is pointing to a wiki
         if hasattr(self, "wikiid") and self.wikiid is not None:
-            smw = Wiki.getSMW(self.wikiid)
+            smw = Wiki.getSMW(self.wikiid, queryDivision=self.queryDivision)
             for option in ["|format=count", ""]:
                 askQuery = (
                     """{{#ask: [[Category:OCRDocument]]
@@ -916,13 +980,12 @@ class Archive(JSONAble):
 | ?Category
 | ?Modification date=lastModified
 | ?Creation date=created
-|limit=1000
 %s
 }}"""
                     % option
                 )
                 print(askQuery)
-                result = smw.query(askQuery)
+                result = smw.query(askQuery, limit=self.queryLimit)
                 baseUrl = f"{smw.site.scheme}://{smw.site.host}{smw.site.path}index.php"
                 if option == "":
                     folderCounter = Counter()
@@ -986,6 +1049,10 @@ class Archive(JSONAble):
                             progress_bar.total += 1
                             progress_bar.update_value(progress_bar.value + 1)
                         pass
+            uploadFolder, uploads = self.getPdfUploads(smw.site, progress_bar)
+            if uploads:
+                foldersByPath[uploadFolder.path] = uploadFolder
+                documentList.extend(uploads)
         else:
             # this archive is pointing to a folder
             pattern = rf"http://{self.server}"
@@ -1050,8 +1117,9 @@ class ArchiveManager(EntityManager, JSONAbleList):
             config,
             handleInvalidListTypes,
             filterInvalidListTypes,
-            debug,
+            debug=debug,
         )
+        self.debug = debug
 
     @staticmethod
     def getInstance(mode=None):
