@@ -5,6 +5,7 @@ Created on 2021-10-21
 """
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -28,9 +29,21 @@ class TestDMS(Basetest):
 
     def setUp(self, debug=True, profile=True):
         Basetest.setUp(self, debug=debug, profile=profile)
+        # never touch the ~/.dms of the user - see #48
+        userArchiveList = os.path.join(DMSStorage.getDmsDir(), "archive-archives.json")
+        self.tmpRoot = tempfile.mkdtemp(prefix="scan2wiki-test-")
+        DMSStorage.cacheRootDir = self.tmpRoot
+        os.makedirs(DMSStorage.getDmsDir())
+        if os.path.isfile(userArchiveList):
+            shutil.copy(userArchiveList, DMSStorage.getDmsDir())
         if self.inPublicCI():
             am = self.getSampleArchiveManager()
             am.store()
+
+    def tearDown(self):
+        DMSStorage.cacheRootDir = None
+        shutil.rmtree(self.tmpRoot, ignore_errors=True)
+        Basetest.tearDown(self)
 
     def getSampleArchiveManager(self):
         """

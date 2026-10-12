@@ -120,11 +120,25 @@ class DMSStorage:
 
     profile = True
     withShowProgress = True
+    # root of the .dms folder - None for the home directory; tests set a temporary folder see #48
+    cacheRootDir: Optional[str] = None
+
+    @classmethod
+    def getDmsDir(cls) -> str:
+        """
+        get the .dms folder with the archive list, config.ini and dms.db
+
+        Returns:
+            str: the path of the .dms folder
+        """
+        root = cls.cacheRootDir if cls.cacheRootDir else os.path.expanduser("~")
+        dmsDir = os.path.join(root, ".dms")
+        return dmsDir
 
     @classmethod
     def get_config(cls):
         config = configparser.ConfigParser()
-        config.read(os.path.expanduser("~/.dms/config.ini"))
+        config.read(os.path.join(cls.getDmsDir(), "config.ini"))
         return config
 
     @staticmethod
@@ -163,6 +177,8 @@ class DMSStorage:
         else:
             raise Exception(f"invalid mode {mode}")
         config.cacheDirName = "dms"
+        if DMSStorage.cacheRootDir:
+            config.cacheRootDir = DMSStorage.cacheRootDir
         cachedir = config.getCachePath()
         config.profile = DMSStorage.profile
         config.withShowProgress = DMSStorage.withShowProgress
