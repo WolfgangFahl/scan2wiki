@@ -302,6 +302,9 @@ class Document(JSONAble):
         ""  # e.g. "a9993e364706816aba3e25717850c26c9cd0d89d" hex checksum of the file
     )
 
+    # readable part of the PID pair e.g. "::bitplan::scan::2015::2015-12-Posteingang::X.pdf"
+    pid: str = ""
+
     # Content
     ocrText: Optional[str] = None  # Extracted OCR text from document
 
@@ -329,10 +332,40 @@ class Document(JSONAble):
                 "name": "2019",
                 "types": "pdf",
                 "sha1": "a9993e364706816aba3e25717850c26c9cd0d89d",
+                "pid": "::bitplan::scan::2019::2019-02-Posteingang::x.pdf",
                 "ocrText": "",
             }
         ]
         return samplesLOD
+
+    @staticmethod
+    def pidOfPath(path: str) -> str:
+        """
+        get the pid for the given path - the scheme of the .meta ids
+
+        Args:
+            path(str): the path e.g. /bitplan/scan/2015/2015-12-Posteingang/X.pdf
+
+        Returns:
+            str: the pid e.g. ::bitplan::scan::2015::2015-12-Posteingang::X.pdf
+        """
+        pid = path.replace("/", "::")
+        return pid
+
+    @staticmethod
+    def pidOfUpload(wikiid: str, name: str) -> str:
+        """
+        get the pid for the given file uploaded to a wiki
+
+        Args:
+            wikiid(str): the id of the wiki
+            name(str): the name of the uploaded file
+
+        Returns:
+            str: the pid e.g. ::schlaun::File::Periskop22.pdf
+        """
+        pid = f"::{wikiid}::File::{name}"
+        return pid
 
     def __post_init__(self):
         """
@@ -356,6 +389,7 @@ class Document(JSONAble):
         self.timestampStr = DMSStorage.getTimeStr(self.fullpath)
         self.fileName = Path(self.fullpath).name
         self.basename = Path(self.fullpath).stem
+        self.pid = Document.pidOfPath(f"{folderPath}/{file}")
         self.pageTitle = f"{self.basename}"
 
         self.categories = f"{datetime.now().year}"
@@ -944,36 +978,52 @@ class Archive(JSONAble):
         folder.name = "File"
         folder.path = "File"
         folder.url = f"{baseUrl}/Special:ListFiles"
-        documents = []
+        # PDF uploads with the pages that embed them - a page holds the meta info of its PDF
         params = {
-            "list": "allimages",
-            "aimime": "application/pdf",
-            "aiprop": "url|size|timestamp|sha1",
-            "ailimit": "max",
+            "generator": "allimages",
+            "gaimime": "application/pdf",
+            "gailimit": "max",
+            "prop": "imageinfo|fileusage",
+            "iiprop": "url|size|timestamp|sha1",
+            "fulimit": "max",
         }
+        filesById = {}
         while True:
             result = site.api("query", http_method="GET", **params)
-            for image in result["query"]["allimages"]:
-                doc = Document()
-                doc.archiveName = self.name
-                doc.folderPath = folder.path
-                doc.name = image["name"]
-                doc.fileName = image["name"]
-                doc.url = image["url"]
-                doc.size = image["size"]
-                doc.sha1 = image["sha1"]
-                doc.types = "pdf"
-                doc.lastModified = datetime.strptime(
-                    image["timestamp"], "%Y-%m-%dT%H:%M:%SZ"
-                )
-                doc.created = doc.lastModified
-                documents.append(doc)
-                if progress_bar:
-                    progress_bar.total += 1
-                    progress_bar.update_value(progress_bar.value + 1)
+            for pageid, page in result.get("query", {}).get("pages", {}).items():
+                record = filesById.setdefault(pageid, {"usage": []})
+                if "imageinfo" in page:
+                    record["title"] = page["title"]
+                    record["info"] = page["imageinfo"][0]
+                for usage in page.get("fileusage", []):
+                    record["usage"].append(usage["title"])
             if "continue" not in result:
                 break
             params.update(result["continue"])
+        documents = []
+        for record in filesById.values():
+            info = record["info"]
+            name = record["title"].split(":", 1)[1].replace(" ", "_")
+            doc = Document()
+            doc.archiveName = self.name
+            doc.folderPath = folder.path
+            doc.name = name
+            doc.fileName = name
+            doc.pid = Document.pidOfUpload(self.wikiid, name)
+            doc.url = info["url"]
+            doc.size = info["size"]
+            doc.sha1 = info["sha1"]
+            doc.types = "pdf"
+            doc.lastModified = datetime.strptime(
+                info["timestamp"], "%Y-%m-%dT%H:%M:%SZ"
+            )
+            doc.created = doc.lastModified
+            if record["usage"]:
+                doc.pageTitle = record["usage"][0]
+            documents.append(doc)
+            if progress_bar:
+                progress_bar.total += 1
+                progress_bar.update_value(progress_bar.value + 1)
         folder.fileCount = len(documents)
         if documents:
             folder.lastModified = max(doc.lastModified for doc in documents)

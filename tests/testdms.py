@@ -10,7 +10,14 @@ import unittest
 
 from ngwidgets.basetest import Basetest
 
-from scan.dms import Archive, ArchiveManager, DMSStorage, DocumentManager, FolderManager
+from scan.dms import (
+    Archive,
+    ArchiveManager,
+    DMSStorage,
+    Document,
+    DocumentManager,
+    FolderManager,
+)
 from scan.profiler import Profiler
 
 
@@ -122,7 +129,6 @@ class TestDMS(Basetest):
             _elapsed, elapsedMessage = profiler.time()
             print(f"... {len(ocr_text):6} {elapsedMessage}")
 
-    @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
     def testSha1(self):
         """
         test the sha1 checksum of a file - see #46
@@ -133,6 +139,20 @@ class TestDMS(Basetest):
         os.unlink(tmp.name)
         self.assertEqual("a9993e364706816aba3e25717850c26c9cd0d89d", sha1)
 
+    def testPid(self):
+        """
+        test the pid of file and upload documents - see #47
+        """
+        self.assertEqual(
+            "::bitplan::scan::2015::2015-12-Posteingang::X.pdf",
+            Document.pidOfPath("/bitplan/scan/2015/2015-12-Posteingang/X.pdf"),
+        )
+        self.assertEqual(
+            "::schlaun::File::Periskop22.pdf",
+            Document.pidOfUpload("schlaun", "Periskop22.pdf"),
+        )
+
+    @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
     def testUnicodeDammit(self):
         """ """
         from bs4 import UnicodeDammit
