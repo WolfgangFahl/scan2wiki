@@ -10,6 +10,7 @@ see http://diagrams.bitplan.com/render/txt/0xe1f1d160.txt
 
 import configparser
 import getpass
+import hashlib
 import logging
 import os
 import re
@@ -204,6 +205,25 @@ class DMSStorage:
         return ftime
 
     @staticmethod
+    def getSha1(fullpath: str, chunkSize: int = 1024 * 1024) -> str:
+        """
+        get the sha1 checksum of the given file - the same algorithm the MediaWiki API delivers for uploads
+
+        Args:
+            fullpath(str): the path of the file
+            chunkSize(int): the number of bytes to read at a time
+
+        Returns:
+            str: the hex sha1 checksum
+        """
+        sha1 = hashlib.sha1()
+        with open(fullpath, "rb") as file:
+            for chunk in iter(lambda: file.read(chunkSize), b""):
+                sha1.update(chunk)
+        hexdigest = sha1.hexdigest()
+        return hexdigest
+
+    @staticmethod
     def getTimeStr(fullpath: str):
         """
         get the last modification time
@@ -319,12 +339,13 @@ class Document(JSONAble):
         post Constructor logic
         """
 
-    def fromFile(self, folderPath, file, local=False, withOcr=False):
+    def fromFile(self, folderPath, file, local=False, withOcr=False, withSha1=False):
         """
         Args:
             folderPath(str): the directory
             file(str): the file
             withOcr(bool): if true get the OCRText
+            withSha1(bool): if true get the sha1 checksum of the file
         """
         self.folderPath = folderPath
         self.name = file
@@ -341,6 +362,8 @@ class Document(JSONAble):
         self.topic = "OCRDocument"
         if withOcr:
             self.getOcrText()
+        if withSha1:
+            self.sha1 = DMSStorage.getSha1(self.fullpath)
         pass
 
     def __str__(self):
@@ -669,7 +692,7 @@ class Folder(JSONAble):
         documents = self.getDocuments(files)
         return documents
 
-    def getDocuments(self, files, withOcr=False, progress_bar=None):
+    def getDocuments(self, files, withOcr=False, progress_bar=None, withSha1=False):
         """
         get the documents for this folder based on the files from my listdir
         progress_bar(Progressbar): a progress bar to track progress
@@ -684,7 +707,7 @@ class Folder(JSONAble):
                     doc = Document()
                     doc.archiveName = self.archiveName
                     doc.url = f"http://{self.archive.server}{self.path}/{file}"
-                    doc.fromFile(self.path, file, withOcr=withOcr)
+                    doc.fromFile(self.path, file, withOcr=withOcr, withSha1=withSha1)
                     documentList.append(doc)
                     if progress_bar:
                         progress_bar.total += 1
@@ -957,12 +980,13 @@ class Archive(JSONAble):
             folder.created = min(doc.created for doc in documents)
         return folder, documents
 
-    def getFoldersAndDocuments(self, withOcr=False, progress_bar=None):
+    def getFoldersAndDocuments(self, withOcr=False, progress_bar=None, withSha1=False):
         """
         get the folders and documents of this archive
 
         Args:
             withOcr(bool): whether to include OCR text
+            withSha1(bool): whether to compute the sha1 checksum of files
             progress_bar(Progressbar): a progress bar to track progress
 
         Returns:
@@ -1076,7 +1100,10 @@ class Archive(JSONAble):
                         folder.lastModified = DMSStorage.getDatetime(fullpath)
                         folder.created = folder.lastModified
                         folderDocuments = folder.getDocuments(
-                            pdfFiles, withOcr=withOcr, progress_bar=progress_bar
+                            pdfFiles,
+                            withOcr=withOcr,
+                            progress_bar=progress_bar,
+                            withSha1=withSha1,
                         )
                         # add the results
                         documentList.extend(folderDocuments)
@@ -1148,7 +1175,12 @@ class ArchiveManager(EntityManager, JSONAbleList):
 
     @staticmethod
     def addFilesAndFoldersForArchive(
-        archive=None, withOcr=False, progress_bar=None, store=False, debug=True
+        archive=None,
+        withOcr=False,
+        progress_bar=None,
+        store=False,
+        debug=True,
+        withSha1=False,
     ):
         """
         add Files and folder for the given Archive
@@ -1166,7 +1198,7 @@ class ArchiveManager(EntityManager, JSONAbleList):
         if debug:
             print(msg)
         afoldersByPath, documentList = archive.getFoldersAndDocuments(
-            withOcr=withOcr, progress_bar=progress_bar
+            withOcr=withOcr, progress_bar=progress_bar, withSha1=withSha1
         )
         folderCount = len(afoldersByPath)
         msg = f"found {folderCount} folders in {archive.name}"

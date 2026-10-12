@@ -4,11 +4,13 @@ Created on 2021-10-21
 @author: wf
 """
 
+import os
+import tempfile
 import unittest
 
 from ngwidgets.basetest import Basetest
 
-from scan.dms import Archive, ArchiveManager, DocumentManager, FolderManager
+from scan.dms import Archive, ArchiveManager, DMSStorage, DocumentManager, FolderManager
 from scan.profiler import Profiler
 
 
@@ -121,6 +123,16 @@ class TestDMS(Basetest):
             print(f"... {len(ocr_text):6} {elapsedMessage}")
 
     @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
+    def testSha1(self):
+        """
+        test the sha1 checksum of a file - see #46
+        """
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(b"abc")
+        sha1 = DMSStorage.getSha1(tmp.name, chunkSize=2)
+        os.unlink(tmp.name)
+        self.assertEqual("a9993e364706816aba3e25717850c26c9cd0d89d", sha1)
+
     def testUnicodeDammit(self):
         """ """
         from bs4 import UnicodeDammit
