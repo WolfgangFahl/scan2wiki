@@ -8,7 +8,9 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import fitz  # PyMuPDF
 from ngwidgets.basetest import Basetest
 
 from scan.dms import (
@@ -17,6 +19,7 @@ from scan.dms import (
     DMSStorage,
     Document,
     DocumentManager,
+    Folder,
     FolderManager,
 )
 from scan.profiler import Profiler
@@ -164,6 +167,49 @@ class TestDMS(Basetest):
             "::schlaun::File::Periskop22.pdf",
             Document.pidOfUpload("schlaun", "Periskop22.pdf"),
         )
+
+    def testPdfFolder(self):
+        """
+        test document PDFs, single-page PDFs and page groups of a .pdf folder - see #9
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdfDir = os.path.join(tmpdir, ".pdf")
+            os.makedirs(os.path.join(pdfDir, "nested.pdf"))
+            pdfFiles = {
+                pdfDir: [
+                    "A.pdf",
+                    "A_p001.pdf",
+                    "A_p002.pdf",
+                    "B_p002.pdf",
+                    "B_p001.pdf",
+                    "C.pdf",
+                    "D_p001.pdf",
+                ],
+                tmpdir: ["D.pdf"],
+            }
+            for dirPath, names in pdfFiles.items():
+                for name in names:
+                    with fitz.open() as pdf:
+                        pdf.new_page()
+                        pdf.save(os.path.join(dirPath, name))
+            folder = Folder()
+            folder.path = pdfDir
+            with patch.object(Folder, "getPrefix", return_value=""):
+                parent = folder.getParent()
+                self.assertTrue(folder.isPdfFolder())
+                self.assertFalse(parent.isPdfFolder())
+                self.assertEqual(["A.pdf", "C.pdf"], sorted(folder.getFiles()))
+                self.assertEqual(["D.pdf"], parent.getFiles())
+                missingGroups = folder.getMissingPageGroups()
+                self.assertEqual({"B": ["B_p001.pdf", "B_p002.pdf"]}, missingGroups)
+                docPath = folder.concatenatePages("B", missingGroups["B"])
+                self.assertEqual(os.path.join(tmpdir, "B.pdf"), docPath)
+                with fitz.open(docPath) as doc:
+                    self.assertEqual(2, doc.page_count)
+                self.assertEqual({}, folder.getMissingPageGroups())
+                self.assertEqual(["B.pdf", "D.pdf"], sorted(parent.getFiles()))
+                with self.assertRaises(FileExistsError):
+                    folder.concatenatePages("B", missingGroups["B"])
 
     @unittest.skipIf(Basetest.inPublicCI(), "Skipping in public CI environment")
     def testUnicodeDammit(self):

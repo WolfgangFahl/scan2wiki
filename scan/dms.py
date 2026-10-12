@@ -19,8 +19,9 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar, List, Optional
+from typing import ClassVar, Dict, List, Optional, Tuple
 
+import fitz  # PyMuPDF
 from bs4 import UnicodeDammit
 from lodentity.entity import EntityManager
 from lodentity.jsonable import JSONAble, JSONAbleList
@@ -644,6 +645,11 @@ class Folder(JSONAble):
     lastModified: Optional[datetime] = None  # Last modification timestamp
     created: Optional[datetime] = None  # Creation timestamp
 
+    # single-page PDF <stem>_pNNN.pdf of a .pdf folder - see #9
+    PAGE_PATTERN: ClassVar[re.Pattern] = re.compile(
+        r"^(?P<stem>.+)_p(?P<page>\d{3})\.pdf$"
+    )
+
     def __post_init__(self):
         """
         post Constructor logic
@@ -714,9 +720,70 @@ class Folder(JSONAble):
             relbase = folderPath
         return relbase
 
-    def getFiles(self, extension=".pdf"):
+    @classmethod
+    def splitPdfFiles(
+        cls, files: List[str], parentFiles: Optional[List[str]] = None
+    ) -> Tuple[List[str], Dict[str, List[str]]]:
         """
-        get all files with the given extension
+        split the given PDF files of a .pdf folder into document PDFs and
+        the page groups whose document PDF is missing - see #9
+
+        <stem>_pNNN.pdf is a single-page PDF, a page of the document <stem>;
+        every other PDF is a document PDF; a page group whose <stem>.pdf
+        exists in the .pdf folder or its parent folder is skipped
+
+        Args:
+            files(list): the PDF file names of the .pdf folder
+            parentFiles(list): the PDF file names of the parent folder
+
+        Returns:
+            tuple: the document PDFs and the sorted single-page PDFs by stem
+            of the page groups still to be concatenated
+        """
+        docFiles = []
+        pageGroups = {}
+        for file in files:
+            match = cls.PAGE_PATTERN.match(file)
+            if match:
+                pageGroups.setdefault(match.group("stem"), []).append(file)
+            else:
+                docFiles.append(file)
+        existing = set(docFiles) | set(parentFiles or [])
+        missingGroups = {
+            stem: sorted(pages)
+            for stem, pages in pageGroups.items()
+            if f"{stem}.pdf" not in existing
+        }
+        split = (docFiles, missingGroups)
+        return split
+
+    def getParent(self) -> "Folder":
+        """
+        get the parent folder of this folder
+
+        Returns:
+            Folder: the parent folder
+        """
+        parent = Folder()
+        parent.archive = getattr(self, "archive", None)
+        parent.archiveName = self.archiveName
+        parent.path = os.path.dirname(self.path)
+        parent.name = os.path.basename(parent.path)
+        return parent
+
+    def isPdfFolder(self) -> bool:
+        """
+        check whether this is a .pdf folder holding document and single-page PDFs
+
+        Returns:
+            bool: True if the last path element is .pdf
+        """
+        isPdf = os.path.basename(self.path) == ".pdf"
+        return isPdf
+
+    def getPdfFiles(self, extension=".pdf") -> List[str]:
+        """
+        get all files with the given extension - files only, never folders
 
         Args:
             extension(str): the extension to search for
@@ -727,9 +794,67 @@ class Folder(JSONAble):
         files = []
         fullPath = Folder.getFullpath(self.path)
         for file in os.listdir(fullPath):
-            if file.endswith(extension) and not file.startswith("._"):
+            if (
+                file.endswith(extension)
+                and not file.startswith("._")
+                and os.path.isfile(os.path.join(fullPath, file))
+            ):
                 files.append(file)
         return files
+
+    def getFiles(self, extension=".pdf"):
+        """
+        get all document files with the given extension;
+        in a .pdf folder single-page PDFs are not documents - see #9
+
+        Args:
+            extension(str): the extension to search for
+
+        Return:
+            list: the files with the given extension
+        """
+        files = self.getPdfFiles(extension)
+        if self.isPdfFolder():
+            files, _missingGroups = Folder.splitPdfFiles(files)
+        return files
+
+    def getMissingPageGroups(self) -> Dict[str, List[str]]:
+        """
+        get the page groups of this .pdf folder whose document PDF is missing
+
+        Returns:
+            dict: the sorted single-page PDFs by stem
+        """
+        missingGroups = {}
+        if self.isPdfFolder():
+            _docFiles, missingGroups = Folder.splitPdfFiles(
+                self.getPdfFiles(), self.getParent().getPdfFiles()
+            )
+        return missingGroups
+
+    def concatenatePages(self, stem: str, pages: List[str]) -> str:
+        """
+        concatenate the given single-page PDFs of this .pdf folder to the
+        document PDF <stem>.pdf in the parent folder, where the concatenated
+        documents of the archives live
+
+        Args:
+            stem(str): the stem of the document
+            pages(list): the sorted single-page PDF file names
+
+        Returns:
+            str: the full path of the document PDF written
+        """
+        fullPath = Folder.getFullpath(self.path)
+        docPath = os.path.join(Folder.getFullpath(self.getParent().path), f"{stem}.pdf")
+        if os.path.exists(docPath):
+            raise FileExistsError(f"{docPath} already exists")
+        with fitz.open() as doc:
+            for page in pages:
+                with fitz.open(os.path.join(fullPath, page)) as pagePdf:
+                    doc.insert_pdf(pagePdf)
+            doc.save(docPath)
+        return docPath
 
     def getFileDocuments(self):
         """
@@ -1046,6 +1171,36 @@ class Archive(JSONAble):
             folder.created = min(doc.created for doc in documents)
         return folder, documents
 
+    def getBasePath(self) -> str:
+        """
+        get the full path of the folder of this file archive
+
+        Returns:
+            str: the full path as accessible on my platform
+        """
+        pattern = rf"http://{self.server}"
+        folderPath = re.sub(pattern, "", self.url)
+        basePath = Folder.getFullpath(folderPath)
+        return basePath
+
+    def getPdfFolders(self) -> List[Folder]:
+        """
+        get the .pdf folders of this file archive - see #9
+
+        Returns:
+            list: the .pdf folders
+        """
+        pdfFolders = []
+        for root, dirs, _files in os.walk(self.getBasePath()):
+            if ".pdf" in dirs:
+                folder = Folder()
+                folder.archive = self
+                folder.archiveName = self.name
+                folder.path = os.path.join(Folder.getRelpath(root), ".pdf")
+                folder.name = ".pdf"
+                pdfFolders.append(folder)
+        return pdfFolders
+
     def getFoldersAndDocuments(self, withOcr=False, progress_bar=None, withSha1=False):
         """
         get the folders and documents of this archive
@@ -1145,14 +1300,13 @@ class Archive(JSONAble):
                 documentList.extend(uploads)
         else:
             # this archive is pointing to a folder
-            pattern = rf"http://{self.server}"
-            folderPath = re.sub(pattern, "", self.url)
-            basePath = Folder.getFullpath(folderPath)
+            basePath = self.getBasePath()
             for root, dirs, files in os.walk(basePath):
                 relbase = Folder.getRelpath(root)
                 # loop over all directories
                 for dirname in dirs:
-                    if not dirname.startswith("."):
+                    # .pdf folders hold document and single-page PDFs - see #9
+                    if not dirname.startswith(".") or dirname == ".pdf":
                         folder = Folder()
                         folder.archive = self
                         fullpath = os.path.join(root, dirname)
